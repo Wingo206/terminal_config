@@ -51,9 +51,16 @@ else
     echo "export PYTHONPATH=\"\${PYTHONPATH}:/opt/ros/noetic/lib/python3/dist-packages\"" >> $HOME/.bashrc
 fi
 
-# Install vim  plugins
+# Install vim plugins
 echo "Installing vim plugins..."
 vim -E -s -u "$HOME/.vimrc" +PlugInstall +qall
+
+# Install python language support for ALE
+echo "Installing flake8 for python linting"
+sudo pip install flake8
+
+echo "Installing black for python fixing"
+sudo pip install black
 
 # Run .bashrc
 echo "Running .bashrc."
