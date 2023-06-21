@@ -17,10 +17,11 @@ paths=(
 for path in "${paths[@]}"
 do
     if [ -f "$HOME/$path" ]; then
-        # Create /old directory if it doens't exist
-        if [ ! -d "$SCRIPT_DIR/old" ]; then
-            mkdir $SCRIPT_DIR/old
+        # Remove /old if it exists
+        if [ -d "$SCRIPT_DIR/old" ]; then
+            rm -rf $SCRIPT_DIR/old
         fi
+        mkdir $SCRIPT_DIR/old
         # Move old file to /old directory
         echo "Moving $HOME/$path to $SCRIPT_DIR/old/ ."
         mv $HOME/$path $SCRIPT_DIR/old/$path
@@ -31,10 +32,10 @@ do
 done
 
 # Setup vim-plug
-if [ -d "$HOME/.vim" ]; then
+# if [ -d "$HOME/.vim" ]; then
     # Move old directory into /old
-    mv $HOME/.vim $SCRIPT_DIR/old/.vim
-fi
+    # mv $HOME/.vim $SCRIPT_DIR/old/.vim
+# fi
 curl -fLo $HOME/.vim/autoload/plug.vim --create-dirs \
         https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
 
