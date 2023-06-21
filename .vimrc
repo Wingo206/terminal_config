@@ -110,6 +110,7 @@ colorscheme shades_of_purple
 " Mappings code goes here.
 inoremap jj <esc>
 nnoremap <space> za
+nnoremap FF :ALEFix <CR>
 " }}}
 
 
