@@ -79,14 +79,15 @@ call plug#begin('~/.vim/plugged')
     Plug 'dense-analysis/ale'
     " ALE Settings -----------------{{{
     let g:ale_linters = {
-                \'python': ['flake8', 'pylint'],
+                \'python': ['flake8']
                 \}
     let g:ale_fixers = {
-                \'python': ['autoflake']
+                \'python': ['black']
                 \}
+    let g:ale_python_black_options = '--line-length=79'
+
     " }}}
     
-    " Plug 'davidhalter/jedi-vim'
     Plug 'ycm-core/YouCompleteMe', { 'do': './install.py'  }
 
     call plug#end()
@@ -121,7 +122,7 @@ augroup filetype_vim
     autocmd FileType vim setlocal foldmethod=marker
     au BufNewFile,BufRead *.py silent 
         set foldmethod=indent
-    " autocmd BufWinEnter * silent! :%foldopen!
+    autocmd BufWinEnter * silent! :%foldopen!
 
 augroup END
 
