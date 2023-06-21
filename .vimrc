@@ -73,7 +73,6 @@ call plug#begin('~/.vim/plugged')
     
     "}}}
     
-    " Plug 'jeetsukumaran/vim-pythonsense'
     Plug 'jiangmiao/auto-pairs'
     Plug 'sheerun/vim-polyglot'
     Plug 'dense-analysis/ale'
@@ -85,10 +84,10 @@ call plug#begin('~/.vim/plugged')
                 \'python': ['black']
                 \}
     let g:ale_python_black_options = '--line-length=79'
-
     " }}}
     
     Plug 'ycm-core/YouCompleteMe', { 'do': './install.py'  }
+    Plug 'tmhedberg/SimpylFold'
 
     call plug#end()
 
@@ -122,7 +121,7 @@ augroup filetype_vim
     autocmd!
     autocmd FileType vim setlocal foldmethod=marker
     au BufNewFile,BufRead *.py silent 
-        set foldmethod=indent
+        set foldmethod=syntax
     autocmd BufWinEnter * silent! :%foldopen!
 
 augroup END
