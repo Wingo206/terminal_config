@@ -50,7 +50,14 @@ else
     echo "# python path for ros python modules. For use with vim plugins." >> $HOME/.bashrc
     echo "export PYTHONPATH=\"\${PYTHONPATH}:/opt/ros/noetic/lib/python3/dist-packages\"" >> $HOME/.bashrc
 fi
-# Install plugins
+
+# Install vim  plugins
 echo "Installing vim plugins..."
 vim -E -s -u "$HOME/.vimrc" +PlugInstall +qall
+
+# Run .bashrc
+echo "Running .bashrc."
+source $HOME/.bashrc
+
+#Finished!
 echo "Done installing!"
