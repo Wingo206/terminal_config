@@ -2,6 +2,12 @@
 
 Repository containing my personal linux preferences and configuration files. Run Setup.sh to move the files into the correct locations and run initialization scripts. Moves existing files to the /old directory within this directory.
 
+Folding tips:
+- Set to automatically save and load folds
+- <space> to toggle current fold
+- zR to open all folds
+- zM to close all folds
+
 NERDTree tips:
 - Opens automatically when opening vim
 - TT set to toggle NERDTree
