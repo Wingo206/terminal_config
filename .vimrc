@@ -196,4 +196,3 @@ let g:airline_theme='shades_of_purple'
     let g:airline_symbols.whitespace = 'Ξ'
     
 " }}}
-" test
