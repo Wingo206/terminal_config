@@ -48,6 +48,7 @@ call plug#begin('~/.vim/plugged')
         
     Plug 'preservim/nerdtree' |
         \ Plug 'Xuyuanp/nerdtree-git-plugin'
+    Plug 'airblade/vim-gitgutter'
     Plug 'tpope/vim-commentary'
     " Plug 'liuchengxu/vista.vim'
     Plug 'vim-airline/vim-airline'
@@ -125,8 +126,8 @@ augroup END
 " Remember folds
 augroup remember_folds
     autocmd!
-    autocmd BufWinLeave * mkview
-    autocmd BufWinEnter * silent! loadview
+    autocmd BufWinLeave * silent! mkview
+    autocmd BufWinEnter * silent! :%foldopen! | silent! loadview
 augroup END 
 
 " NERDTree autocommands
