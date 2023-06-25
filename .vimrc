@@ -48,31 +48,8 @@ call plug#begin('~/.vim/plugged')
         
     Plug 'preservim/nerdtree'
     Plug 'tpope/vim-commentary'
-    Plug 'liuchengxu/vista.vim'
-
+    " Plug 'liuchengxu/vista.vim'
     Plug 'vim-airline/vim-airline'
-    "Airline Settings --------------------- {{{
-    " enable shades of purple airline theme
-    let g:shades_of_purple_airline = 1
-    let g:airline_theme='shades_of_purple'
-    " airline symbols
-        " air-line
-        let g:airline_powerline_fonts = 1
-
-        if !exists('g:airline_symbols')
-            let g:airline_symbols = {}
-        endif
-
-        " unicode symbols
-        let g:airline_left_sep = ' '
-        let g:airline_right_sep = ' '
-        let g:airline_symbols.linenr = '␊'
-        let g:airline_symbols.branch = '⎇'
-        let g:airline_symbols.paste = 'ρ'
-        let g:airline_symbols.whitespace = 'Ξ'
-    
-    "}}}
-    
     Plug 'jiangmiao/auto-pairs'
     Plug 'sheerun/vim-polyglot'
     Plug 'dense-analysis/ale'
@@ -128,7 +105,6 @@ nnoremap TT :NERDTreeToggle <Cr>
 augroup filetype_vim
     autocmd!
     autocmd FileType vim setlocal foldmethod=marker
-
 augroup END
 
 " Python autocomands
@@ -141,10 +117,11 @@ augroup END
 " Readme autocommands
 augroup filetype_md
     autocmd!
-    set wrap
+    au BufNewFile,BufRead *.md set wrap
     set linebreak
 augroup END
 
+" Remember folds
 augroup remember_folds
     autocmd!
     autocmd BufWinLeave * mkview
@@ -187,7 +164,6 @@ augroup NERDTreeCmds
     " and bring back NERDTree.
     autocmd BufEnter * if bufname('#') =~ 'NERD_tree_\d\+' && bufname('%') !~ 'NERD_tree_\d\+' && winnr('$') > 1 |
         \ let buf=bufnr() | buffer# | execute "normal! \<C-W>w" | execute 'buffer'.buf | endif
-
 augroup END
 
 " More Vimscripts code goes here.
@@ -199,4 +175,23 @@ augroup END
 
 " Status bar code goes here.
 
+" enable shades of purple airline theme
+let g:shades_of_purple_airline = 1
+let g:airline_theme='shades_of_purple'
+" airline symbols
+    " air-line
+    let g:airline_powerline_fonts = 1
+
+    if !exists('g:airline_symbols')
+        let g:airline_symbols = {}
+    endif
+
+    " unicode symbols
+    let g:airline_left_sep = ' '
+    let g:airline_right_sep = ' '
+    let g:airline_symbols.linenr = '␊'
+    let g:airline_symbols.branch = '⎇'
+    let g:airline_symbols.paste = 'ρ'
+    let g:airline_symbols.whitespace = 'Ξ'
+    
 " }}}
