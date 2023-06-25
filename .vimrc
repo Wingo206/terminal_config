@@ -128,7 +128,6 @@ nnoremap TT :NERDTreeToggle <Cr>
 augroup filetype_vim
     autocmd!
     autocmd FileType vim setlocal foldmethod=marker
-    autocmd BufWinEnter * silent! :%foldopen!
 
 augroup END
 
@@ -145,6 +144,12 @@ augroup filetype_md
     set wrap
     set linebreak
 augroup END
+
+augroup remember_folds
+    autocmd!
+    autocmd BufWinLeave * mkview
+    autocmd BufWinEnter * silent! loadview
+augroup END 
 
 " NERDTree autocommands
 augroup NERDTreeCmds
