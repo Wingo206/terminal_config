@@ -112,6 +112,8 @@ nnoremap <space> za
 nnoremap FF :ALEFix <CR>
 let NERDTreeMapCustomOpen = '<space>'
 let NERDTreeCustomOpenArgs = {'file': {'reuse':'currenttab', 'keepopen':1, 'where':'t', 'stay':0}}
+let NERDTreeShowHidden=1
+
 
 " TT for Tree Toggle, open NERDTree
 nnoremap TT :NERDTreeToggle <Cr>
