@@ -46,7 +46,8 @@ call plug#begin('~/.vim/plugged')
     Plug 'Rigellute/shades-of-purple.vim'
     " Plug 'joshdick/onedark.vim'
         
-    Plug 'preservim/nerdtree'
+    Plug 'preservim/nerdtree' |
+        \ Plug 'Xuyuanp/nerdtree-git-plugin'
     Plug 'tpope/vim-commentary'
     " Plug 'liuchengxu/vista.vim'
     Plug 'vim-airline/vim-airline'
