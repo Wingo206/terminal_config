@@ -126,12 +126,25 @@ nnoremap TT :NERDTreeToggle <Cr>
 augroup filetype_vim
     autocmd!
     autocmd FileType vim setlocal foldmethod=marker
-    au BufNewFile,BufRead *.py silent 
-        set foldmethod=syntax
     autocmd BufWinEnter * silent! :%foldopen!
 
 augroup END
 
+" Python autocomands
+augroup filetype_py
+    autocmd!
+    au BufNewFile,BufRead *.py silent 
+        set foldmethod=syntax
+augroup END
+
+" Readme autocommands
+augroup filetype_md
+    autocmd!
+    set wrap
+    set linebreak
+augroup END
+
+" NERDTree autocommands
 augroup NERDTreeCmds
     autocmd!
 
