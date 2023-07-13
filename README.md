@@ -33,3 +33,5 @@ NERDTree tips:
 - gt: next tab, gT: previous tab
 - Closes when it is the last remaining window
 - use <Ctrl> ww to toggle between active windows. Can be used to focus on NERDTree
+
+todo: add nodejs setup, npm, and eslint to setup script
