@@ -45,7 +45,6 @@ call plug#begin('~/.vim/plugged')
     " Setup the theme
     Plug 'Rigellute/shades-of-purple.vim'
     " Plug 'joshdick/onedark.vim'
-        
     Plug 'preservim/nerdtree' |
         \ Plug 'Xuyuanp/nerdtree-git-plugin'
     Plug 'airblade/vim-gitgutter'
@@ -55,22 +54,29 @@ call plug#begin('~/.vim/plugged')
     Plug 'jiangmiao/auto-pairs'
     Plug 'sheerun/vim-polyglot'
     Plug 'dense-analysis/ale'
-    " ALE Settings -----------------{{{
-    let g:ale_linters = {
-                \'python': ['flake8']
-                \}
-    let g:ale_fixers = {
-                \'python': ['black']
-                \}
-    let g:ale_python_black_options = '--line-length=79'
-    " }}}
-    
     Plug 'ycm-core/YouCompleteMe', { 'do': './install.py'  }
     Plug 'tmhedberg/SimpylFold'
 
-    call plug#end()
+call plug#end()
 
-"""" enable 24bit true color
+" ALE Settings -----------------{{{
+let g:ale_linters = {
+            \'python': ['flake8'],
+            \'arduino':['cc'],
+            \'javascript':['eslint'],
+            \}
+let g:ale_fixers = {
+            \'*': ['remove_trailing_lines', 'trim_whitespace'],
+            \'python': ['black'],
+            \'cpp': ['clang-format'],
+            \'javascript':['eslint'],
+            \}
+let g:ale_linter_aliases = {'arduino': 'cpp'}
+let g:ale_python_black_options = '--line-length=79'
+let g:ale_cpp_cpplint_options = '--extensions=ino'
+" }}}
+
+""" enable 24bit true color
 " If you have vim >=8.0 or Neovim >= 0.1.5
 if (has("termguicolors"))
  set termguicolors
@@ -90,7 +96,7 @@ inoremap jj <esc>
 nnoremap <space> za
 nnoremap FF :ALEFix <CR>
 let NERDTreeMapCustomOpen = '<space>'
-let NERDTreeCustomOpenArgs = {'file': {'reuse':'currenttab', 'keepopen':1, 'where':'t', 'stay':0}}
+let NERDTreeCustomOpenArgs = {'file': {'reuse':'all', 'keepopen':1, 'where':'t', 'stay':0}}
 let NERDTreeShowHidden=1
 
 
@@ -112,7 +118,7 @@ augroup END
 " Python autocomands
 augroup filetype_py
     autocmd!
-    au BufNewFile,BufRead *.py silent 
+    au BufNewFile,BufRead *.py silent
         set foldmethod=syntax
 augroup END
 
@@ -128,7 +134,7 @@ augroup remember_folds
     autocmd!
     autocmd BufWinLeave * silent! mkview
     autocmd BufWinEnter * silent! :%foldopen! | silent! loadview
-augroup END 
+augroup END
 
 " NERDTree autocommands
 augroup NERDTreeCmds
@@ -195,5 +201,5 @@ let g:airline_theme='shades_of_purple'
     let g:airline_symbols.branch = '⎇'
     let g:airline_symbols.paste = 'ρ'
     let g:airline_symbols.whitespace = 'Ξ'
-    
+
 " }}}
