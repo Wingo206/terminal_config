@@ -173,6 +173,8 @@ augroup NERDTreeCmds
     " and bring back NERDTree.
     autocmd BufEnter * if bufname('#') =~ 'NERD_tree_\d\+' && bufname('%') !~ 'NERD_tree_\d\+' && winnr('$') > 1 |
         \ let buf=bufnr() | buffer# | execute "normal! \<C-W>w" | execute 'buffer'.buf | endif
+
+    autocmd TabEnter * NERDTreeFocus |  wincmd w
 augroup END
 
 " More Vimscripts code goes here.
