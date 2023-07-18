@@ -5,7 +5,7 @@
     filetype indent on
 
     set number
-    " set relativenumber
+    set relativenumber
     set cursorline
     set cursorcolumn
 
@@ -72,6 +72,7 @@ let g:ale_fixers = {
             \'javascript':['eslint'],
             \}
 let g:ale_linter_aliases = {'arduino': 'cpp'}
+let g:ale_python_flake8_options = '--ignore=E203'
 let g:ale_python_black_options = '--line-length=79'
 let g:ale_cpp_cpplint_options = '--extensions=ino'
 " }}}
