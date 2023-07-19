@@ -198,11 +198,18 @@ let g:airline_theme='shades_of_purple'
     endif
 
     " unicode symbols
-    let g:airline_left_sep = ' '
-    let g:airline_right_sep = ' '
-    let g:airline_symbols.linenr = '␊'
-    let g:airline_symbols.branch = '⎇'
-    let g:airline_symbols.paste = 'ρ'
-    let g:airline_symbols.whitespace = 'Ξ'
+    let g:airline_left_sep = ''
+    let g:airline_left_alt_sep = ''
+    let g:airline_right_sep = ''
+    let g:airline_right_alt_sep = ''
+    let g:airline_symbols.branch = ''
+    let g:airline_symbols.readonly = ''
+    let g:airline_symbols.linenr = ''
+    " let g:airline_left_sep = ' '
+    " let g:airline_right_sep = ' '
+    " let g:airline_symbols.linenr = '␊'
+    " let g:airline_symbols.branch = '⎇'
+    " let g:airline_symbols.paste = 'ρ'
+    " let g:airline_symbols.whitespace = 'Ξ'
 
 " }}}
