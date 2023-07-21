@@ -56,6 +56,7 @@ call plug#begin('~/.vim/plugged')
     Plug 'dense-analysis/ale'
     Plug 'ycm-core/YouCompleteMe', { 'do': './install.py'  }
     Plug 'tmhedberg/SimpylFold'
+    Plug 'tribela/vim-transparent'
 
 call plug#end()
 
