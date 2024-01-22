@@ -36,6 +36,10 @@
       let &t_8b = "\<Esc>[48;2;%lu;%lu;%lum"
       set termguicolors
     endif
+
+
+
+
 " }}}
 
 " PLUGINS {{{
@@ -48,7 +52,6 @@
             \ Plug 'Xuyuanp/nerdtree-git-plugin'
         Plug 'airblade/vim-gitgutter'
         Plug 'tpope/vim-commentary'
-        " Plug 'vim-airline/vim-airline'
         Plug 'nvim-lualine/lualine.nvim'
         Plug 'nvim-tree/nvim-web-devicons'
         Plug 'jiangmiao/auto-pairs'
@@ -67,6 +70,19 @@
     " coc extensions
     let g:coc_global_extensions = ['coc-pyright', 'coc-tsserver']
 
+    " settings for coc completion
+    set encoding=utf-8
+    set nobackup
+    set nowritebackup
+    set updatetime=300
+    set signcolumn=yes
+    inoremap <silent><expr> <TAB> coc#pum#visible() ? coc#pum#confirm()
+                              \: "\<C-g>u\<CR>\<c-r>=coc#on_enter()\<CR>"
+
+    function! CheckBackspace() abort
+      let col = col('.') - 1
+      return !col || getline('.')[col - 1]  =~# '\s'
+    endfunction
 " }}}
 
 " MAPPINGS {{{
@@ -89,8 +105,15 @@
     " Telescope
     nnoremap <leader>tf <cmd>Telescope find_files<cr>
     nnoremap <leader>tg <cmd>Telescope live_grep<cr>
-    nnoremap <leader>tb <cmd>Telescope buffers<cr>
+    " nnoremap <leader>tbuf <cmd>Telescope buffers<cr>
     nnoremap <leader>th <cmd>Telescope help_tags<cr>
+
+    " new tab
+    nnoremap <leader><tab> <cmd>tabnew<cr>
+
+    " Delete Buffers
+    command! BufOnly silent! execute "%bd|e#|bd#"
+    nnoremap <leader>bd <cmd>BufOnly<cr>
 
 " }}}
 
