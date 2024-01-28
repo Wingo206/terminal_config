@@ -103,7 +103,7 @@
     nmap <leader>cf <Plug>(coc-format)
 
     " Telescope
-    nnoremap <leader>tf <cmd>Telescope find_files<cr>
+    nnoremap <leader>tf <cmd>Telescope find_files hidden=true<cr>
     nnoremap <leader>tg <cmd>Telescope live_grep<cr>
     " nnoremap <leader>tbuf <cmd>Telescope buffers<cr>
     nnoremap <leader>th <cmd>Telescope help_tags<cr>
