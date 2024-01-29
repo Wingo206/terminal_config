@@ -29,6 +29,8 @@
     set wildignore=*.docx,*.jpg,*.png,*.gif,*.pdf,*.pyc,*.exe,*.flv,*.img,*.xlsx
 
     set mouse=a
+    set nofoldenable
+    set foldlevel=99
 
     " Fix 256 color mode for tmux
     if exists('+termguicolors')
@@ -37,16 +39,13 @@
       set termguicolors
     endif
 
-
-
-
 " }}}
 
 " PLUGINS {{{
 
     " Plugin code goes here.
     call plug#begin(has('nvim') ? stdpath('data') . '/plugged' : '~/.vim/plugged')
-        " Setup the theme
+        " Setup the them
         Plug 'Rigellute/shades-of-purple.vim'
         Plug 'preservim/nerdtree' |
             \ Plug 'Xuyuanp/nerdtree-git-plugin'
@@ -54,7 +53,7 @@
         Plug 'tpope/vim-commentary'
         Plug 'nvim-lualine/lualine.nvim'
         Plug 'nvim-tree/nvim-web-devicons'
-        Plug 'jiangmiao/auto-pairs'
+        "Plug 'jiangmiao/auto-pairs'
         Plug 'sheerun/vim-polyglot'
         Plug 'tmhedberg/SimpylFold'
         Plug 'nvim-lua/plenary.nvim'
@@ -64,6 +63,7 @@
         Plug 'tribela/vim-transparent'
         Plug 'nvim-treesitter/nvim-treesitter', {'do': ':TSUpdate'}
         Plug 'kylechui/nvim-surround'
+        Plug 'cohama/lexima.vim'
 
     call plug#end()
 
@@ -76,13 +76,15 @@
     set nowritebackup
     set updatetime=300
     set signcolumn=yes
-    inoremap <silent><expr> <TAB> coc#pum#visible() ? coc#pum#confirm()
-                              \: "\<C-g>u\<CR>\<c-r>=coc#on_enter()\<CR>"
-
+    inoremap <silent><expr> <Tab> coc#pum#visible() ? coc#_select_confirm() : "\<C-g>u\<Tab>"
     function! CheckBackspace() abort
       let col = col('.') - 1
       return !col || getline('.')[col - 1]  =~# '\s'
     endfunction
+
+    " setup lexima
+   
+
 " }}}
 
 " MAPPINGS {{{
@@ -92,6 +94,8 @@
     inoremap jj <esc>
     nnoremap <space> za
     nnoremap FF :ALEFix <CR>
+    nnoremap <Tab> gt
+    nnoremap <S-Tab> gT
 
     " NERDTree
     let NERDTreeMapCustomOpen = '<space>'
@@ -110,6 +114,7 @@
 
     " new tab
     nnoremap <leader><tab> <cmd>tabnew<cr>
+
 
     " Delete Buffers
     command! BufOnly silent! execute "%bd|e#|bd#"
@@ -139,11 +144,11 @@
     augroup END
 
     " Remember folds
-    augroup remember_folds
-        autocmd!
-        autocmd BufWinLeave * silent! mkview
-        autocmd BufWinEnter * silent! :%foldopen! | silent! loadview
-    augroup END
+    "augroup remember_folds
+    "    autocmd!
+    "    autocmd BufWinLeave * silent! mkview
+    "    autocmd BufWinEnter * silent! :%foldopen! | silent! loadview
+    "augroup END
 
     " NERDTree autocommands
     augroup NERDTreeCmds
