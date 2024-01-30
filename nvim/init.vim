@@ -43,9 +43,7 @@
 
 " PLUGINS {{{
 
-    " Plugin code goes here.
     call plug#begin(has('nvim') ? stdpath('data') . '/plugged' : '~/.vim/plugged')
-        " Setup the them
         Plug 'Rigellute/shades-of-purple.vim'
         Plug 'preservim/nerdtree' |
             \ Plug 'Xuyuanp/nerdtree-git-plugin'
@@ -53,7 +51,6 @@
         Plug 'tpope/vim-commentary'
         Plug 'nvim-lualine/lualine.nvim'
         Plug 'nvim-tree/nvim-web-devicons'
-        "Plug 'jiangmiao/auto-pairs'
         Plug 'sheerun/vim-polyglot'
         Plug 'tmhedberg/SimpylFold'
         Plug 'nvim-lua/plenary.nvim'
@@ -64,6 +61,10 @@
         Plug 'nvim-treesitter/nvim-treesitter', {'do': ':TSUpdate'}
         Plug 'kylechui/nvim-surround'
         Plug 'cohama/lexima.vim'
+        Plug 'notomo/gesture.nvim'
+        Plug 'Shatur/neovim-session-manager'
+        Plug 'stevearc/dressing.nvim'
+
 
     call plug#end()
 
@@ -82,15 +83,9 @@
       return !col || getline('.')[col - 1]  =~# '\s'
     endfunction
 
-    " setup lexima
-    
-   
-
 " }}}
 
 " MAPPINGS {{{
-
-    " Mappings code goes here.
     let mapleader = "," " map leader to comma
     inoremap jj <esc>
     nnoremap <space> za
@@ -114,7 +109,7 @@
     nnoremap <leader>th <cmd>Telescope help_tags<cr>
 
     " new tab
-    nnoremap <leader><tab> <cmd>tabnew<cr>
+    nnoremap <leader><tab> <cmd>tabnew<cr><cmd>Telescope find_files<cr>
 
 
     " Delete Buffers
@@ -143,13 +138,6 @@
         au BufNewFile,BufRead *.md set wrap
         set linebreak
     augroup END
-
-    " Remember folds
-    "augroup remember_folds
-    "    autocmd!
-    "    autocmd BufWinLeave * silent! mkview
-    "    autocmd BufWinEnter * silent! :%foldopen! | silent! loadview
-    "augroup END
 
     " NERDTree autocommands
     augroup NERDTreeCmds
@@ -237,6 +225,10 @@
     let g:transparent_groups += ['GitGutterAdd', 'GitGutterChange', 'GitGutterDelete', 'GitGutterDelete']
 
     let g:transparent_groups += ['VertSplit']
+
+    " gesture transparency
+    hi GestureBackground guibg=#000000
+    let g:transparent_groups += ['GestureBackground']
 
     " hi PmenuThumb guibg = #b362ff
     " hi PmenuSBar guibg = #a599e9
