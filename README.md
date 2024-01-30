@@ -14,9 +14,17 @@ Useful keybinds:
 - / to search
 - :%s/old/new to replace all instance of "old" with "new"
 
-My Mappings:
+Mappings specific to my config:
 - jj to <esc> in insert mode
 - gcc to comment line (gc + motion)
+
+Leader commands (starts with <comma>):
+- cf: format with CoC
+- tf: Telescope find files
+- tg: Telescope grep
+- th: Telescope help (search help docs for nvim symbols/functions)
+- <tab>: new tab and open telescope
+- bd: delete other buffers, keep only current
 
 Folding tips:
 - Set to automatically save and load folds
@@ -33,5 +41,13 @@ NERDTree tips:
 - gt: next tab, gT: previous tab
 - Closes when it is the last remaining window
 - use <Ctrl> ww to toggle between active windows. Can be used to focus on NERDTree
+
+Tmux hotkeys:
+- Ctrl+b prefixes all hotkeys
+- \ to open picker menu
+- w to pick between windows/sessions
+- % to split horizontally
+- " to split vertically
+- hjkl to switch panes
 
 todo: add nodejs setup, npm, and eslint to setup script

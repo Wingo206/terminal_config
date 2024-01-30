@@ -61,7 +61,7 @@
         Plug 'nvim-treesitter/nvim-treesitter', {'do': ':TSUpdate'}
         Plug 'kylechui/nvim-surround'
         Plug 'cohama/lexima.vim'
-        Plug 'notomo/gesture.nvim'
+        "Plug 'notomo/gesture.nvim'
         Plug 'Shatur/neovim-session-manager'
         Plug 'stevearc/dressing.nvim'
 
@@ -89,7 +89,6 @@
     let mapleader = "," " map leader to comma
     inoremap jj <esc>
     nnoremap <space> za
-    nnoremap FF :ALEFix <CR>
     nnoremap <Tab> gt
     nnoremap <S-Tab> gT
 
@@ -105,7 +104,6 @@
     " Telescope
     nnoremap <leader>tf <cmd>Telescope find_files hidden=true<cr>
     nnoremap <leader>tg <cmd>Telescope live_grep<cr>
-    " nnoremap <leader>tbuf <cmd>Telescope buffers<cr>
     nnoremap <leader>th <cmd>Telescope help_tags<cr>
 
     " new tab

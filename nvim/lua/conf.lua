@@ -36,7 +36,7 @@ require'nvim-treesitter.configs'.setup {
         -- disable highlighting for the `tex` filetype, you need to include `latex` in this list as this is
         -- the name of the parser)
         -- list of language that will be disabled
-        disable = { "javascript", "make"},
+        disable = { "javascript", "make", "md"},
         -- Or use a function for more flexibility, e.g. to disable slow treesitter highlight for large files
         -- disable = function(lang, buf)
         --     local max_filesize = 100 * 1024 -- 100 KB
@@ -107,18 +107,18 @@ require("nvim-surround").setup({
   })
 
 -- gesture setup
-vim.opt.mouse = "a"
-vim.opt.mousemoveevent = true
+-- vim.opt.mouse = "a"
+-- vim.opt.mousemoveevent = true
 
-vim.keymap.set("n", "<LeftDrag>", [[<Cmd>lua require("gesture").draw()<CR>]], { silent = true })
-vim.keymap.set("n", "<LeftRelease>", [[<Cmd>lua require("gesture").finish()<CR>]], { silent = true })
+-- vim.keymap.set("n", "<LeftDrag>", [[<Cmd>lua require("gesture").draw()<CR>]], { silent = true })
+-- vim.keymap.set("n", "<LeftRelease>", [[<Cmd>lua require("gesture").finish()<CR>]], { silent = true })
 
-local gesture = require("gesture")
-gesture.register({
-  name = "scroll to bottom",
-  inputs = { gesture.up(), gesture.down() },
-  action = "normal! G",
-})
+-- local gesture = require("gesture")
+-- gesture.register({
+--   name = "scroll to bottom",
+--   inputs = { gesture.up(), gesture.down() },
+--   action = "normal! G",
+-- })
 
 -- neovim session manager
 local Path = require('plenary.path')
