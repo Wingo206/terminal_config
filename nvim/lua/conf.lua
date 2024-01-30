@@ -1,3 +1,9 @@
+-- nvim-tree
+-- disable netrw at the very start of your init.lua
+vim.g.loaded_netrw = 1
+vim.g.loaded_netrwPlugin = 1
+require("nvim-tree").setup()
+
 -- Telescope setup
 require('telescope').setup {
     extensions = {
@@ -139,4 +145,16 @@ require('session_manager').setup({
   autosave_only_in_session = false, -- Always autosaves session. If true, only autosaves after a session is active.
   max_path_length = 80,  -- Shorten the display path if length exceeds this threshold. Use 0 if don't want to shorten the path at all.
 })
+local config_group = vim.api.nvim_create_augroup('MyConfigGroup', {}) -- A global group for all your config autocommands
+
+vim.api.nvim_create_autocmd({ 'User' }, {
+  pattern = "SessionSavePre",
+  group = config_group,
+  callback = function()
+    vim.api.nvim_command('Bdelete hidden')
+  end,
+})
+
+-- neoscroll
+require('neoscroll').setup()
 

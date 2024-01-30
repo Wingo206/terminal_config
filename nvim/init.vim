@@ -51,6 +51,7 @@
         Plug 'tpope/vim-commentary'
         Plug 'nvim-lualine/lualine.nvim'
         Plug 'nvim-tree/nvim-web-devicons'
+        Plug 'nvim-tree/nvim-tree.lua'
         Plug 'sheerun/vim-polyglot'
         Plug 'tmhedberg/SimpylFold'
         Plug 'nvim-lua/plenary.nvim'
@@ -64,6 +65,10 @@
         "Plug 'notomo/gesture.nvim'
         Plug 'Shatur/neovim-session-manager'
         Plug 'stevearc/dressing.nvim'
+        Plug 'karb94/neoscroll.nvim'
+        "Plug 'echasnovski/mini.map'
+        Plug 'Asheq/close-buffers.vim'
+
 
 
     call plug#end()
@@ -86,9 +91,9 @@
 " }}}
 
 " MAPPINGS {{{
-    let mapleader = "," " map leader to comma
+    let mapleader = "," " map leader to space
     inoremap jj <esc>
-    nnoremap <space> za
+    "<space> za
     nnoremap <Tab> gt
     nnoremap <S-Tab> gT
 
@@ -96,7 +101,12 @@
     let NERDTreeMapCustomOpen = '<space>'
     let NERDTreeCustomOpenArgs = {'file': {'reuse':'all', 'keepopen':1, 'where':'t', 'stay':0}}
     let NERDTreeShowHidden=1
-    nnoremap <leader>nt :NERDTreeToggle <Cr>
+    "nnoremap <leader>nt :NERDTreeToggle <Cr>
+
+    " nvim-tree
+    nnoremap <leader>nt <cmd>NvimTreeToggle<cr>
+    nnoremap <leader>nf <cmd>NvimTreeFindFile<cr>
+
 
     " CoC
     nmap <leader>cf <Plug>(coc-format)
@@ -135,47 +145,6 @@
         autocmd!
         au BufNewFile,BufRead *.md set wrap
         set linebreak
-    augroup END
-
-    " NERDTree autocommands
-    augroup NERDTreeCmds
-        autocmd!
-
-        " Start NERDTree. If a file is specified, move the cursor to its window.
-        " autocmd StdinReadPre * let s:std_in=1
-        " autocmd VimEnter * NERDTree | if argc() > 0 || exists("s:std_in") | wincmd p | endif
-
-        " Start NERDTree when Vim starts with a directory argument.
-        " autocmd StdinReadPre * let s:std_in=1
-        " autocmd VimEnter * if argc() == 1 && isdirectory(argv()[0]) && !exists('s:std_in') |
-        "     \ execute 'NERDTree' argv()[0] | wincmd p | enew | execute 'cd '.argv()[0] | call NERDTreeFocus() | endif
-
-        " Open the existing NERDTree on each new tab.
-        " autocmd BufWinEnter * if getcmdwintype() == '' | silent NERDTreeMirror | endif
-
-        " Exit Vim if NERDTree is the only window remaining in the only tab.
-        " autocmd BufEnter * if tabpagenr('$') == 1 && winnr('$') == 1 && exists('b:NERDTree') && b:NERDTree.isTabTree() | quit | endif
-
-        " Close the tab if NERDTree is the only window remaining in it.
-        " autocmd BufEnter * if winnr('$') == 1 && exists('b:NERDTree') && b:NERDTree.isTabTree() | quit | endif
-
-        " autocmd! WinEnter * call CloseVimOnLastWindow()
-
-        " function! CloseVimOnLastWindow()
-        "     " If we are on the last tab, if it contains only one window
-        "     " and this window doesn't contains a buffer representing a file
-        "     if (tabpagenr('$') == 1 && winnr() == 1 && len(expand('%'))==0)
-        "         q!
-        "     endif
-        " endfunction
-
-        "If another buffer tries to replace NERDTree, put it in the other window,
-        " and bring back NERDTree.
-        " autocmd BufEnter * if bufname('#') =~ 'NERD_tree_\d\+' && bufname('%') !~ 'NERD_tree_\d\+' && winnr('$') > 1 |
-        "     \ let buf=bufnr() | buffer# | execute "normal! \<C-W>w" | execute 'buffer'.buf | endif
-
-        " autocmd TabEnter * NERDTreeFocus |  wincmd w
-        " autocmd TabLeave * if bufname('#') =~ 'NERD_tree_\d\+' | wincmd w
     augroup END
 
     function! SynStack()
