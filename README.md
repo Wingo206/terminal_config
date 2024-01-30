@@ -50,4 +50,7 @@ Tmux hotkeys:
 - " to split vertically
 - hjkl to switch panes
 
-todo: add nodejs setup, npm, and eslint to setup script
+# Todo:
+- keybinds and config for nvimtree
+- keybinds for nvim session manager
+
