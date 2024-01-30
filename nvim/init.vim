@@ -107,7 +107,7 @@
     nnoremap <leader>th <cmd>Telescope help_tags<cr>
 
     " new tab
-    nnoremap <leader><tab> <cmd>tabnew<cr><cmd>Telescope find_files<cr>
+    nnoremap <leader><tab> <cmd>tabnew<cr><cmd>Telescope find_files hidden=true<cr>
 
 
     " Delete Buffers
