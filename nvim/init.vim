@@ -45,8 +45,6 @@
 
     call plug#begin(has('nvim') ? stdpath('data') . '/plugged' : '~/.vim/plugged')
         Plug 'Rigellute/shades-of-purple.vim'
-        Plug 'preservim/nerdtree' |
-            \ Plug 'Xuyuanp/nerdtree-git-plugin'
         Plug 'airblade/vim-gitgutter'
         Plug 'tpope/vim-commentary'
         Plug 'nvim-lualine/lualine.nvim'
@@ -97,16 +95,9 @@
     nnoremap <Tab> gt
     nnoremap <S-Tab> gT
 
-    " NERDTree
-    let NERDTreeMapCustomOpen = '<space>'
-    let NERDTreeCustomOpenArgs = {'file': {'reuse':'all', 'keepopen':1, 'where':'t', 'stay':0}}
-    let NERDTreeShowHidden=1
-    "nnoremap <leader>nt :NERDTreeToggle <Cr>
-
     " nvim-tree
     nnoremap <leader>nt <cmd>NvimTreeToggle<cr>
     nnoremap <leader>nf <cmd>NvimTreeFindFile<cr>
-
 
     " CoC
     nmap <leader>cf <Plug>(coc-format)
@@ -118,7 +109,6 @@
 
     " new tab
     nnoremap <leader><tab> <cmd>tabnew<cr><cmd>Telescope find_files hidden=true<cr>
-
 
     " Delete Buffers
     command! BufOnly silent! execute "%bd|e#|bd#"

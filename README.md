@@ -34,16 +34,6 @@ Folding tips:
 - zR to open all folds
 - zM to close all folds
 
-NERDTree tips:
-- Opens automatically when opening vim
-- TT set to toggle NERDTree
-- Use J and K to move down and up
-- Use / to find text within vim. Can be used within NERDTree
-- <space> set to unfold directories and open files in new tab
-- gt: next tab, gT: previous tab
-- Closes when it is the last remaining window
-- use <Ctrl> ww to toggle between active windows. Can be used to focus on NERDTree
-
 nvim-tree:
 - ,nt: toggle nvim-tree
 - ,nf: open nvim-tree, find and focus on current file
@@ -60,6 +50,5 @@ Tmux hotkeys:
 - hjkl to switch panes
 
 # Todo:
-- keybinds and config for nvimtree
 - keybinds for nvim session manager
 
