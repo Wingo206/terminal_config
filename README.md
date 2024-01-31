@@ -17,18 +17,20 @@ Useful keybinds:
 Mappings specific to my config:
 - jj to <esc> in insert mode
 - gcc to comment line (gc + motion)
-
-Leader commands (starts with <comma>):
-- cf: format with CoC
-- tf: Telescope find files
-- tg: Telescope grep
-- th: Telescope help (search help docs for nvim symbols/functions)
-- <tab>: new tab and open telescope
 - bd: delete other buffers, keep only current
+- <Tab> <S-Tab> to navigate to next and previous tab
+
+CoC:
+- ,cf: format with CoC
+
+Telescope:
+- ,tf: Telescope find files
+- ,tg: Telescope grep
+- ,th: Telescope help (search help docs for nvim symbols/functions)
+- ,<tab>: new tab and open telescope
 
 Folding tips:
 - Set to automatically save and load folds
-- <space> to toggle current fold
 - zR to open all folds
 - zM to close all folds
 
@@ -41,6 +43,13 @@ NERDTree tips:
 - gt: next tab, gT: previous tab
 - Closes when it is the last remaining window
 - use <Ctrl> ww to toggle between active windows. Can be used to focus on NERDTree
+
+nvim-tree:
+- ,nt: toggle nvim-tree
+- ,nf: open nvim-tree, find and focus on current file
+- <C-t>: open in new tab
+- o: open
+- for other bindings, use g? while in nvim-tree to open bindings tab
 
 Tmux hotkeys:
 - Ctrl+b prefixes all hotkeys
