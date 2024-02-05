@@ -13,7 +13,7 @@ local function my_on_attach(bufnr)
 
   -- your removals and mappings go here
   local function dummy()
-    print("hi")
+    vim.cmd("tabnext")
   end
   vim.keymap.set('n', '<Tab>', dummy, opts('broga'))
 end
