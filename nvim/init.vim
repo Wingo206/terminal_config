@@ -63,9 +63,10 @@
         "Plug 'notomo/gesture.nvim'
         Plug 'Shatur/neovim-session-manager'
         Plug 'stevearc/dressing.nvim'
-        Plug 'karb94/neoscroll.nvim'
         "Plug 'echasnovski/mini.map'
         Plug 'Asheq/close-buffers.vim'
+        "Plug 'gorbit99/codewindow.nvim'
+        Plug 'dstein64/nvim-scrollview'
 
 
 
@@ -81,15 +82,15 @@
     set updatetime=300
     set signcolumn=yes
     inoremap <silent><expr> <Tab> coc#pum#visible() ? coc#_select_confirm() : "\<C-g>u\<Tab>"
-    function! CheckBackspace() abort
-      let col = col('.') - 1
-      return !col || getline('.')[col - 1]  =~# '\s'
-    endfunction
+    " function! CheckBackspace() abort
+    "   let col = col('.') - 1
+    "   return !col || getline('.')[col - 1]  =~# '\s'
+    " endfunction
 
 " }}}
 
 " MAPPINGS {{{
-    let mapleader = "," " map leader to space
+    let mapleader = "," " map leader to comma
     inoremap jj <esc>
     "<space> za
     nnoremap <Tab> gt
@@ -166,6 +167,13 @@
     hi String guibg=NONE guifg=#b9ffa8
     hi Comment guibg=NONE guifg=#cc96fa
     hi TelescopeBorder guibg=NONE guifg=#a599e9
+    " hi Visual guibg=#441F66 guifg=NONE
+    hi Visual guibg=#573973 guifg=NONE
+
+    "hi ScrollView guibg=#b989e2 guifg=NONE
+    "hi ScrollView guibg=#a599e9 guifg=NONE
+    hi ScrollView guibg=#7367B7 guifg=NONE
+    "hi ScrollView guibg=140 guifg=NONE
 
     hi Directory guibg=NONE guifg=#ff8aff
 
