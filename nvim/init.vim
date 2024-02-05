@@ -67,8 +67,7 @@
         Plug 'Asheq/close-buffers.vim'
         "Plug 'gorbit99/codewindow.nvim'
         Plug 'dstein64/nvim-scrollview'
-
-
+        Plug 'jabirali/vim-tmux-yank'
 
     call plug#end()
 
