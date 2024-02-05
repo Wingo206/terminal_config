@@ -2,6 +2,9 @@
 -- disable netrw at the very start of your init.lua
 vim.g.loaded_netrw = 1
 vim.g.loaded_netrwPlugin = 1
+
+vim.opt.fillchars = { eob = " ", }
+
 local function my_on_attach(bufnr)
   local api = require('nvim-tree.api')
 
@@ -10,6 +13,7 @@ local function my_on_attach(bufnr)
   end
 
   api.config.mappings.default_on_attach(bufnr)
+
 
   -- your removals and mappings go here
   local function dummy()
@@ -138,7 +142,7 @@ require('lualine').setup {
 }
 
 -- nvim-surround setup
-require( "nvim-surround" ).setup({
+require("nvim-surround").setup({
 
 })
 

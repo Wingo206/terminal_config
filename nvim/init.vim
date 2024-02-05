@@ -167,8 +167,8 @@
     hi String guibg=NONE guifg=#b9ffa8
     hi Comment guibg=NONE guifg=#cc96fa
     hi TelescopeBorder guibg=NONE guifg=#a599e9
-    " hi Visual guibg=#441F66 guifg=NONE
-    hi Visual guibg=#573973 guifg=NONE
+    hi Visual guibg=#754495 guifg=NONE
+    hi Search guibg=#754495 guifg=NONE
 
     "hi ScrollView guibg=#b989e2 guifg=NONE
     "hi ScrollView guibg=#a599e9 guifg=NONE
