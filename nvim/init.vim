@@ -1,4 +1,3 @@
-"BASIC {{{
     set nocompatible
     filetype on
     filetype plugin on
@@ -39,9 +38,7 @@
       set termguicolors
     endif
 
-" }}}
 
-" PLUGINS {{{
 
     call plug#begin(has('nvim') ? stdpath('data') . '/plugged' : '~/.vim/plugged')
         Plug 'Rigellute/shades-of-purple.vim'
@@ -60,14 +57,16 @@
         Plug 'nvim-treesitter/nvim-treesitter', {'do': ':TSUpdate'}
         Plug 'kylechui/nvim-surround'
         Plug 'cohama/lexima.vim'
-        "Plug 'notomo/gesture.nvim'
         Plug 'Shatur/neovim-session-manager'
         Plug 'stevearc/dressing.nvim'
-        "Plug 'echasnovski/mini.map'
         Plug 'Asheq/close-buffers.vim'
-        "Plug 'gorbit99/codewindow.nvim'
         Plug 'dstein64/nvim-scrollview'
         Plug 'jabirali/vim-tmux-yank'
+
+        " things I tried but not using
+        "Plug 'echasnovski/mini.map'
+        "Plug 'gorbit99/codewindow.nvim'
+        "Plug 'notomo/gesture.nvim'
 
     call plug#end()
 
@@ -81,14 +80,9 @@
     set updatetime=300
     set signcolumn=yes
     inoremap <silent><expr> <Tab> coc#pum#visible() ? coc#_select_confirm() : "\<C-g>u\<Tab>"
-    " function! CheckBackspace() abort
-    "   let col = col('.') - 1
-    "   return !col || getline('.')[col - 1]  =~# '\s'
-    " endfunction
 
-" }}}
+" mappings
 
-" MAPPINGS {{{
     let mapleader = "," " map leader to comma
     inoremap jj <esc>
     "<space> za
