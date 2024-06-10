@@ -2,6 +2,10 @@
 
 Repository containing my personal linux preferences and configuration files. Run Setup.sh to move the files into the correct locations and run initialization scripts. Moves existing files to the /old directory within this directory.
 
+Useful Tools:
+- fzf ``https://askubuntu.com/questions/1515760/unknown-option-bash-when-opening-the-terminal``
+- zoxide ``https://github.com/ajeetdsouza/zoxide``
+
 Useful keybinds:
 - h j k l for movement in normal mode
 - ZZ to do :wq (exit and save)

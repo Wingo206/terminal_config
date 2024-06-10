@@ -3,11 +3,12 @@
     "python.analysis.typeCheckingMode": "off",
     "python.linting.flake8Enabled": true,
     "python.linting.flake8Args": [
-        "--ignore=E203"
+        "--ignore=E203",
+        "--max-line-length=160"
     ],
     "python.formatting.provider": "black",
     "python.formatting.blackArgs": [
-        "--line-length=79"
+        "--line-length=159"
     ],
     "diagnostic.floatConfig": {
         "border": true,
@@ -30,5 +31,7 @@
     },
     "eslint.enable": true,
     "eslint.autoFixOnSave": false,
-    "Lua.diagnostics.globals": ["vim"]
+    "Lua.diagnostics.globals": ["vim"],
+    "typescript.suggestionActions.enabled": false,
+    "javascript.suggestionActions.enabled": false,
 }

@@ -185,3 +185,6 @@ vim.api.nvim_create_autocmd({ 'User' }, {
 --   diagnostics_severities = {vim.diagnostic.severity.ERROR}
 -- })
 --vim.g.scrollview_signs_on_startup = {'all'}
+
+vim.opt.tabstop = 4
+vim.opt.shiftwidth = 4

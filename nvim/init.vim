@@ -22,6 +22,7 @@
     set showmatch
     set hlsearch
     set history=1000
+    set autoread
 
     set wildmenu
     set wildmode=list:longest
@@ -65,7 +66,7 @@
 
         " things I tried but not using
         "Plug 'echasnovski/mini.map'
-        "Plug 'gorbit99/codewindow.nvim'
+        " Plug 'gorbit99/codewindow.nvim'
         "Plug 'notomo/gesture.nvim'
 
     call plug#end()
@@ -102,7 +103,7 @@
     nnoremap <leader>th <cmd>Telescope help_tags<cr>
 
     " new tab
-    nnoremap <leader><tab> <cmd>tabnew<cr><cmd>Telescope find_files hidden=true<cr>
+    nnoremap <leader><tab> <cmd>NvimTreeClose<cr><cmd>tabnew<cr><cmd>Telescope find_files hidden=true<cr>
 
     " Delete Buffers
     command! BufOnly silent! execute "%bd|e#|bd#"
@@ -215,4 +216,6 @@
 " }}}
 
 " Add Lua configuration
+    set shiftwidth=4
+    set tabstop=4
 lua require('conf')
