@@ -2,6 +2,11 @@
 
 Repository containing my personal linux preferences and configuration files. Run Setup.sh to move the files into the correct locations and run initialization scripts. Moves existing files to the /old directory within this directory.
 
+#Setup
+- Clone repository into home directory
+- Install stow
+- In this directory, run ```stow .```
+
 Useful Tools:
 - fzf ``https://askubuntu.com/questions/1515760/unknown-option-bash-when-opening-the-terminal``
 - zoxide ``https://github.com/ajeetdsouza/zoxide``
@@ -52,7 +57,3 @@ Tmux hotkeys:
 - % to split horizontally
 - " to split vertically
 - hjkl to switch panes
-
-# Todo:
-- keybinds for nvim session manager
-
