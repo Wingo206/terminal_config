@@ -66,7 +66,8 @@ unset color_prompt force_color_prompt
 # If this is an xterm set the title to user@host:dir
 case "$TERM" in
 xterm*|rxvt*)
-    PS1="\[\e]0;${debian_chroot:+($debian_chroot)}\u@\h: \w\a\]$PS1"
+    local title="\[\e]0;${debian_chroot:+($debian_chroot)}\u@\h: \w\a\]"
+    PS1="${title}${PS1}"
     ;;
 *)
     ;;
@@ -120,12 +121,18 @@ fi
 source /opt/ros/noetic/setup.bash
 source ~/upcar/catkin_ws/devel/setup.bash
 
+# automatically start roscore
+if ! pgrep -x "roscore" > /dev/null
+then
+    roscore > /dev/null 2>&1 &
+fi
+
 # python path for ros python modules. For use with vim plugins.
 export PYTHONPATH="${PYTHONPATH}:/opt/ros/noetic/lib/python3/dist-packages"
 export PYTHONPATH="${PYTHONPATH}:/home/brandon/upcar/catkin_ws/src/web_display/src"
 
 # Set up fzf key bindings and fuzzy completion
-[ -f ~/.fzf.bash ] && source ~/.fzf.bash
+[ -f ~/.fzf.bash ] && source ~/.fzf.bash  # custom fzf setup
 
 # zoxide
 export PATH="$HOME/.local/bin:$PATH"

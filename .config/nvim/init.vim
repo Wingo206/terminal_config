@@ -63,6 +63,7 @@
         Plug 'Asheq/close-buffers.vim'
         Plug 'dstein64/nvim-scrollview'
         Plug 'jabirali/vim-tmux-yank'
+        Plug 'nosduco/remote-sshfs.nvim'
 
         " things I tried but not using
         "Plug 'echasnovski/mini.map'

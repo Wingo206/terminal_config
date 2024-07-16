@@ -7,6 +7,10 @@ Repository containing my personal linux preferences and configuration files. Run
 - Install stow
 - In this directory, run ```stow .```
 
+#Adding new files
+- Move the file to this directory
+- Run ```stow .```
+
 Useful Tools:
 - fzf ``https://askubuntu.com/questions/1515760/unknown-option-bash-when-opening-the-terminal``
 - zoxide ``https://github.com/ajeetdsouza/zoxide``
