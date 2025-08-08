@@ -23,6 +23,9 @@ nvm use --lts
 
 go into nvim
 :PlugInstall
+
+sudo apt install fd-find
+sudo apt install ripgrep
 ```
 
 # Adding new files
