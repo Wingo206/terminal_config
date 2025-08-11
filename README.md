@@ -28,6 +28,13 @@ sudo apt install fd-find
 sudo apt install ripgrep
 ```
 
+tmux setup
+```
+git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
+tmux source ~/.tmux.conf
+ctrl+b then capital I
+```
+
 # Adding new files
 - Move the file to this directory
 - Run ```stow .```
