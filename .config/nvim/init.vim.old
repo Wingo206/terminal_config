@@ -1,0 +1,47 @@
+
+    " coc extensions
+    let g:coc_global_extensions = ['coc-pyright', 'coc-tsserver']
+
+    " settings for coc completion
+    set encoding=utf-8
+    set nobackup
+    set nowritebackup
+    set updatetime=300
+    set signcolumn=yes
+    inoremap <silent><expr> <Tab> coc#pum#visible() ? coc#_select_confirm() : "\<C-g>u\<Tab>"
+
+" VIMSCRIPT {{{
+
+    augroup filetype_vim
+        autocmd!
+        autocmd FileType vim setlocal foldmethod=marker
+    augroup END
+
+    " Python autocomands
+    augroup filetype_py
+        autocmd!
+        au BufNewFile,BufRead *.py silent
+            set foldmethod=syntax
+    augroup END
+
+    " Readme autocommands
+    augroup filetype_md
+        autocmd!
+        au BufNewFile,BufRead *.md set wrap
+        set linebreak
+    augroup END
+
+    function! SynStack()
+      if !exists("*synstack")
+        return
+      endif
+      echo map(synstack(line('.'), col('.')), 'synIDattr(v:val, "name")')
+    endfunc
+
+" }}}
+
+
+" Add Lua configuration
+    set shiftwidth=4
+    set tabstop=4
+"lua require('conf')
