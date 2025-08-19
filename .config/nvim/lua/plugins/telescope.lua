@@ -21,7 +21,7 @@ return {
 
 			pickers = {
 				find_files = {
-					hidden = true, -- Show hidden files by default
+					hidden = false,
 				},
 			},
 			extensions = {
