@@ -1,13 +1,18 @@
-# linux_pref
+# Terminal Config for Ubuntu
 
 Repository containing my personal linux preferences and configuration files. Run Setup.sh to move the files into the correct locations and run initialization scripts. Moves existing files to the /old directory within this directory.
 
 # Setup
-- Clone repository into home directory
-- Install stow
-- In this directory, run ```stow .```
+- ``sudo apt update``
+- ``cd .ssh``
+- ``ssh-keygen``
+- Upload public key to github in settings --> ssh keys
+- ``cd ~``
+- ``git clone git@github.com:Wingo206/terminal_config.git``
+- ``sudo apt install stow``
+- ``stow .``
 
-nvim setup
+# nvim setup
 ```
 curl -LO https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz
 sudo rm -rf /opt/nvim
@@ -23,9 +28,6 @@ curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
 source ~/.bashrc
 nvm install --lts
 nvm use --lts
-
-go into nvim
-:PlugInstall
 
 sudo apt install fd-find
 sudo apt install ripgrep
