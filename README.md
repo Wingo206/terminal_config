@@ -21,17 +21,26 @@ sudo tar -C /opt -xzf nvim-linux-x86_64.tar.gz
 # add to bashrc
 export PATH="$PATH:/opt/nvim-linux-x86_64/bin"
 
-sh -c 'curl -fLo "${XDG_DATA_HOME:-$HOME/.local/share}"/nvim/site/autoload/plug.vim --create-dirs \
-       https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim'
+source ~/.bashrc
 
+sudo apt install fd-find  # for telescope
+sudo apt install ripgrep  # for telescope
+sudo apt install build-essential
+sudo apt install unzip  # for stylua lsp
+
+# for mason
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
 source ~/.bashrc
 nvm install --lts
 nvm use --lts
 
-sudo apt install fd-find
-sudo apt install ripgrep
+# for telescope
+git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
+~/.fzf/install
+
 ```
+
+# use :MasonLog to see installation failures
 
 tmux setup
 ```
