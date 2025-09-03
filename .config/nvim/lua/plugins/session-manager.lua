@@ -34,16 +34,16 @@ return {
 			max_path_length = 80, -- Shorten the display path if length exceeds this threshold. Use 0 if don't want to shorten the path at all.
 		})
 
-		-- Create autocommand group and autocmd
-		local config_group = vim.api.nvim_create_augroup("MyConfigGroup", {})
-		vim.api.nvim_create_autocmd({ "User" }, {
-			pattern = "SessionSavePre",
-			group = config_group,
-			callback = function()
-				-- Note: You'll need to have a plugin that provides Bdelete command
-				-- or replace this with a different buffer deletion method
-				pcall(vim.api.nvim_command, "Bdelete hidden")
-			end,
-		})
+		-- -- Create autocommand group and autocmd
+		-- local config_group = vim.api.nvim_create_augroup("MyConfigGroup", {})
+		-- vim.api.nvim_create_autocmd({ "User" }, {
+		-- 	pattern = "SessionSavePre",
+		-- 	group = config_group,
+		-- 	callback = function()
+		-- 		-- Note: You'll need to have a plugin that provides Bdelete command
+		-- 		-- or replace this with a different buffer deletion method
+		-- 		pcall(vim.api.nvim_command, "Bdelete hidden")
+		-- 	end,
+		-- })
 	end,
 }
