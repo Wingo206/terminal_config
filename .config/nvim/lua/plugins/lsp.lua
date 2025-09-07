@@ -5,7 +5,7 @@ return {
 		"neovim/nvim-lspconfig",
 		event = { "BufReadPre", "BufNewFile" },
 		dependencies = {
-			"hrsh7th/cmp-nvim-lsp", -- LSP source for nvim-cmp
+			-- "hrsh7th/cmp-nvim-lsp", -- LSP source for nvim-cmp
 			"williamboman/mason-lspconfig.nvim",
 		},
 		config = function()
@@ -70,62 +70,107 @@ return {
 		end,
 	},
 
-	-- Completion Engine
+	-- Mason: Package manager for LSP servers, DAP servers, linters, formatters
 	{
-		"hrsh7th/nvim-cmp",
-		event = "InsertEnter",
-		dependencies = {
-			"hrsh7th/cmp-nvim-lsp",
-			"L3MON4D3/LuaSnip",
-		},
+		"williamboman/mason.nvim",
 		config = function()
-			local cmp = require("cmp")
-			local luasnip = require("luasnip")
-
-			cmp.setup({
-				sources = {
-					{ name = "nvim_lsp" },
-				},
-				mapping = cmp.mapping.preset.insert({
-					["<C-Space>"] = cmp.mapping.complete(),
-					["<C-u>"] = cmp.mapping.scroll_docs(-4),
-					["<C-d>"] = cmp.mapping.scroll_docs(4),
-					["<CR>"] = cmp.mapping.confirm({ select = true }),
-
-					-- Tab completion like the minimal example
-					-- ["<Tab>"] = cmp.mapping(function(fallback)
-					-- 	if cmp.visible() then
-					-- 		cmp.select_next_item()
-					-- 	elseif luasnip.expand_or_jumpable() then
-					-- 		luasnip.expand_or_jump()
-					-- 	else
-					-- 		fallback()
-					-- 	end
-					-- end, { "i", "s" }),
-
-					["<S-Tab>"] = cmp.mapping(function(fallback)
-						if cmp.visible() then
-							cmp.select_prev_item()
-						elseif luasnip.jumpable(-1) then
-							luasnip.jump(-1)
-						else
-							fallback()
-						end
-					end, { "i", "s" }),
-				}),
-				snippet = {
-					expand = function(args)
-						luasnip.lsp_expand(args.body)
-					end,
+			require("mason").setup({
+				ui = {
+					icons = {
+						package_installed = "✓",
+						package_pending = "➜",
+						package_uninstalled = "✗",
+					},
 				},
 			})
 		end,
 	},
 
-	-- Snippet Engine
+	-- Mason-LSPConfig: Bridge between mason and lspconfig
+	-- Makes setting up lsps easier
 	{
-		"L3MON4D3/LuaSnip",
-		version = "2.*",
-		build = "make install_jsregexp",
+		"williamboman/mason-lspconfig.nvim",
+		dependencies = { "williamboman/mason.nvim" },
+		config = function()
+			local lspconfig = require("lspconfig")
+			local lsp_capabilities = require("blink.cmp").get_lsp_capabilities()
+
+			require("mason-lspconfig").setup({
+				-- Automatically install these language servers
+				ensure_installed = {
+					"lua_ls",
+					"pyright",
+					"ts_ls",
+				},
+
+				-- Automatically install language servers set up via lspconfig
+				automatic_installation = true,
+
+				-- Handlers: automatic setup for all servers
+				handlers = {
+					-- Default handler for all servers
+					function(server)
+						lspconfig[server].setup({
+							capabilities = lsp_capabilities,
+						})
+					end,
+
+					--
+					-- -- Custom handler for lua_ls
+					-- ["lua_ls"] = function()
+					-- 	lspconfig.lua_ls.setup({
+					-- 		capabilities = lsp_capabilities,
+					-- 		settings = {
+					-- 			Lua = {
+					-- 				runtime = { version = "LuaJIT" },
+					-- 				diagnostics = { globals = { "vim" } },
+					-- 				workspace = {
+					-- 					library = vim.api.nvim_get_runtime_file("", true),
+					-- 					checkThirdParty = false,
+					-- 				},
+					-- 				telemetry = { enable = false },
+					-- 			},
+					-- 		},
+					-- 	})
+					-- end,
+				},
+			})
+		end,
+	},
+	{
+		"WhoIsSethDaniel/mason-tool-installer",
+		dependencies = {
+			"williamboman/mason.nvim",
+			"williamboman/mason-lspconfig.nvim",
+		},
+		config = function()
+			require("mason-tool-installer").setup({
+				ensure_installed = {
+					-- LSP servers (already handled by mason-lspconfig)
+					-- "lua_ls", "pyright", "ts_ls",
+
+					-- Formatters
+					"stylua", -- Lua formatter
+					-- "black", -- Python formatter
+					-- "isort", -- Python import sorter
+					"prettierd", -- Faster prettier
+
+					-- Linters (optional)
+					"eslint_d", -- JavaScript/TypeScript linter
+					-- "flake8", -- Python linter
+
+					-- Add more tools as needed
+				},
+
+				-- Auto-install missing tools on startup
+				auto_update = false,
+				run_on_start = true,
+				start_delay = 3000,
+
+				integrations = {
+					["mason-lspconfig"] = true,
+				},
+			})
+		end,
 	},
 }

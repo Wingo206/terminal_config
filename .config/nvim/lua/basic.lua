@@ -79,6 +79,10 @@ opt.foldenable = false
 -- Set leader key
 vim.g.mapleader = ","
 
+-- Encoding
+opt.encoding = "utf-8"
+opt.fileencoding = "utf-8"
+
 -- Additional modern improvements
 opt.signcolumn = "yes" -- Always show sign column (for LSP, git signs, etc.)
 opt.updatetime = 300 -- Faster completion (default is 4000ms)
