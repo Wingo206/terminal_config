@@ -1,0 +1,718 @@
+#!/usr/bin/env bash
+
+set -o pipefail
+
+APP_NAME="git-branch-updater"
+PATH="$HOME/.local/bin:$HOME/.fzf/bin:$PATH"
+DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/$APP_NAME"
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/$APP_NAME"
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/$APP_NAME"
+TARGETS_FILE="$DATA_DIR/targets.tsv"
+REPO_CACHE="$CACHE_DIR/repos.txt"
+MAX_JOBS="${GIT_BRANCH_UPDATER_JOBS:-4}"
+
+EXCLUDES=(
+  ".cache"
+  ".local"
+  ".cursor"
+  ".fzf"
+  ".nvm"
+  ".pyenv"
+  ".tmux"
+  ".npm"
+  ".cargo"
+  ".rustup"
+  ".Trash"
+  "node_modules"
+  ".venv"
+  "venv"
+  "dist"
+  "build"
+  "target"
+  "snap"
+)
+
+usage() {
+  cat <<'EOF'
+Usage: git-branch-updater <command>
+
+Commands:
+  menu           Open the fzf main menu
+  popup          Open the main menu in a tmux popup
+  add            Add a repo/remote branch target
+  remove         Remove saved targets
+  list           List saved targets
+  update         Pick saved targets and update them
+  update --all   Update all saved targets
+  refresh-cache  Refresh the cached repo list
+  latest-log     Print the latest run log path
+EOF
+}
+
+info() {
+  printf '%s\n' "$*"
+}
+
+pause_to_close() {
+  printf '\nPress any key to close...'
+  IFS= read -r -s -n 1 _ || true
+  printf '\n'
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+ensure_dirs() {
+  mkdir -p "$DATA_DIR" "$CACHE_DIR" "$STATE_DIR/logs"
+  touch "$TARGETS_FILE"
+}
+
+require_cmd() {
+  command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"
+}
+
+require_fzf() {
+  require_cmd fzf
+}
+
+fd_cmd() {
+  if command -v fd >/dev/null 2>&1; then
+    printf 'fd\n'
+  elif command -v fdfind >/dev/null 2>&1; then
+    printf 'fdfind\n'
+  else
+    return 1
+  fi
+}
+
+require_fd() {
+  fd_cmd >/dev/null || die "missing required command: fd or fdfind"
+}
+
+validate_no_tab_or_newline() {
+  local value="$1"
+  local name="$2"
+
+  if [[ "$value" == *$'\t'* || "$value" == *$'\n'* ]]; then
+    die "$name cannot contain tabs or newlines"
+  fi
+}
+
+target_label() {
+  local repo="$1"
+  local branch="$2"
+  printf '%s:%s' "$(basename "$repo")" "$branch"
+}
+
+refresh_cache() {
+  ensure_dirs
+  require_fd
+  require_cmd git
+
+  local fd
+  fd="$(fd_cmd)"
+
+  local args=(-H -I -t d '^\.git$' "$HOME")
+  local exclude
+  for exclude in "${EXCLUDES[@]}"; do
+    args+=(--exclude "$exclude")
+  done
+
+  local tmp
+  tmp="$(mktemp)"
+
+  "$fd" "${args[@]}" 2>/dev/null \
+    | while IFS= read -r git_dir; do
+        git_dir="${git_dir%/}"
+        local repo="${git_dir%/.git}"
+        if git -C "$repo" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+          printf '%s\n' "$repo"
+        fi
+      done \
+    | sort -u >"$tmp"
+
+  mv "$tmp" "$REPO_CACHE"
+  info "cached $(wc -l <"$REPO_CACHE") repos in $REPO_CACHE"
+}
+
+ensure_repo_cache() {
+  ensure_dirs
+  if [[ ! -s "$REPO_CACHE" ]]; then
+    info "repo cache is empty; scanning $HOME ..."
+    refresh_cache
+  fi
+}
+
+pick_repo() {
+  ensure_repo_cache
+  require_fzf
+
+  fzf \
+    --prompt='repo> ' \
+    --height=80% \
+    --preview='git -C {} status --short --branch 2>/dev/null' \
+    --preview-window='right:60%' \
+    <"$REPO_CACHE"
+}
+
+maybe_fetch_for_picker() {
+  local repo="$1"
+
+  local choice
+  choice="$(
+    printf 'Use current remote branch list\nFetch remotes first\n' \
+      | fzf --prompt='branches> ' --height=40%
+  )" || return 1
+
+  if [[ "$choice" == "Fetch remotes first" ]]; then
+    git -C "$repo" fetch --all --prune
+  fi
+}
+
+format_branch_picker_rows() {
+  awk -F '\t' '
+    function trunc(value, width) {
+      if (length(value) <= width) {
+        return value
+      }
+      return substr(value, 1, width - 3) "..."
+    }
+
+    function fixed(value, width) {
+      return sprintf("%-" width "s", trunc(value, width))
+    }
+
+    $1 !~ /\/HEAD$/ {
+      printf "%s\t%s\t%s\t%s\t%s\n", \
+        $1, \
+        fixed($1, 44), \
+        fixed($2, 13), \
+        fixed($3, 16), \
+        trunc($4, 42)
+    }
+  '
+}
+
+pick_remote_branch() {
+  local repo="$1"
+
+  maybe_fetch_for_picker "$repo" || return 1
+  export GIT_BRANCH_UPDATER_PREVIEW_REPO="$repo"
+
+  git -C "$repo" for-each-ref \
+    --sort=-committerdate \
+    --format='%(refname:short)%09%(committerdate:relative)%09%(authorname)%09%(subject)' \
+    refs/remotes \
+    | format_branch_picker_rows \
+    | fzf \
+        --ansi \
+        --prompt='branch> ' \
+        --height=80% \
+        --delimiter=$'\t' \
+        --with-nth=2,3,4,5 \
+        --nth=1 \
+        --tiebreak=begin,index \
+        --preview='branch=$(printf "%s" {} | cut -f1); git -C "$GIT_BRANCH_UPDATER_PREVIEW_REPO" -c color.ui=always log --color=always -1 --decorate --stat --oneline "$branch" 2>/dev/null' \
+        --preview-window='right:45%'
+}
+
+target_exists() {
+  local repo="$1"
+  local remote="$2"
+  local branch="$3"
+
+  awk -F '\t' \
+    -v repo="$repo" \
+    -v remote="$remote" \
+    -v branch="$branch" \
+    '$1 == repo && $2 == remote && $3 == branch { found = 1 } END { exit found ? 0 : 1 }' \
+    "$TARGETS_FILE"
+}
+
+add_target() {
+  ensure_dirs
+  require_cmd git
+  require_fzf
+
+  local repo
+  repo="$(pick_repo)" || return 1
+  [[ -n "$repo" ]] || return 1
+
+  local selected
+  selected="$(GIT_BRANCH_UPDATER_PREVIEW_REPO="$repo" pick_remote_branch "$repo")" || return 1
+  [[ -n "$selected" ]] || return 1
+
+  local remote_branch remote branch label
+  remote_branch="${selected%%$'\t'*}"
+  remote="${remote_branch%%/*}"
+  branch="${remote_branch#*/}"
+
+  if [[ -z "$remote" || -z "$branch" || "$remote" == "$remote_branch" ]]; then
+    die "could not parse remote branch: $remote_branch"
+  fi
+
+  validate_no_tab_or_newline "$repo" "repo path"
+  validate_no_tab_or_newline "$remote" "remote"
+  validate_no_tab_or_newline "$branch" "branch"
+
+  label="$(target_label "$repo" "$branch")"
+
+  if target_exists "$repo" "$remote" "$branch"; then
+    info "already saved: $label ($remote/$branch)"
+    return 0
+  fi
+
+  printf '%s\t%s\t%s\t%s\n' "$repo" "$remote" "$branch" "$label" >>"$TARGETS_FILE"
+  info "saved: $label ($remote/$branch)"
+}
+
+format_targets() {
+  awk -F '\t' '
+    BEGIN {
+      printf "%-32s  %-12s  %-32s  %s\n", "LABEL", "REMOTE", "BRANCH", "REPO"
+      printf "%-32s  %-12s  %-32s  %s\n", "-----", "------", "------", "----"
+    }
+    NF >= 4 {
+      printf "%-32s  %-12s  %-32s  %s\n", $4, $2, $3, $1
+    }
+  ' "$TARGETS_FILE"
+}
+
+list_targets() {
+  ensure_dirs
+
+  if [[ ! -s "$TARGETS_FILE" ]]; then
+    info "no saved targets"
+    return 0
+  fi
+
+  format_targets
+}
+
+remove_targets() {
+  ensure_dirs
+  require_fzf
+
+  if [[ ! -s "$TARGETS_FILE" ]]; then
+    info "no saved targets"
+    return 0
+  fi
+
+  local selected_file
+  selected_file="$(mktemp)"
+
+  awk -F '\t' 'NF >= 4 { printf "%s\t%s\t%s/%s\t%s\n", NR, $4, $2, $3, $1 }' "$TARGETS_FILE" \
+    | fzf --multi --prompt='remove> ' --height=80% \
+    | cut -f1 >"$selected_file"
+
+  if [[ ! -s "$selected_file" ]]; then
+    rm -f "$selected_file"
+    return 0
+  fi
+
+  local confirm
+  confirm="$(printf 'No\nYes\n' | fzf --prompt='remove selected targets? ' --height=20%)" || {
+    rm -f "$selected_file"
+    return 1
+  }
+
+  if [[ "$confirm" != "Yes" ]]; then
+    rm -f "$selected_file"
+    info "remove cancelled"
+    return 0
+  fi
+
+  local tmp
+  tmp="$(mktemp)"
+  awk -F '\t' '
+    NR == FNR { remove[$1] = 1; next }
+    !(FNR in remove)
+  ' "$selected_file" "$TARGETS_FILE" >"$tmp"
+
+  mv "$tmp" "$TARGETS_FILE"
+  rm -f "$selected_file"
+  info "removed selected targets"
+}
+
+select_targets_for_update() {
+  ensure_dirs
+  require_fzf
+  export GIT_BRANCH_UPDATER_TARGETS_FILE="$TARGETS_FILE"
+
+  if [[ ! -s "$TARGETS_FILE" ]]; then
+    info "no saved targets" >&2
+    return 1
+  fi
+
+  local selected
+  selected="$(
+    {
+      printf '__ALL__\tall saved targets\t\t\n'
+      awk -F '\t' 'NF >= 4 { printf "%s\t%s\t%s/%s\t%s\n", NR, $4, $2, $3, $1 }' "$TARGETS_FILE"
+    } | fzf \
+        --multi \
+        --prompt='update> ' \
+        --height=80% \
+        --header='Enter on "all saved targets", or Tab-select specific targets' \
+        --preview='id=$(printf "%s" {} | cut -f1); if [ "$id" = "__ALL__" ]; then printf "Update all saved targets"; else awk -F "\t" -v id="$id" "NR == id { printf \"repo: %s\nremote: %s\nbranch: %s\n\", \$1, \$2, \$3 }" "$GIT_BRANCH_UPDATER_TARGETS_FILE"; fi' \
+        --preview-window='right:60%'
+  )" || return 1
+
+  if [[ -z "$selected" ]]; then
+    return 1
+  fi
+
+  if printf '%s\n' "$selected" | awk -F '\t' '$1 == "__ALL__" { found = 1 } END { exit found ? 0 : 1 }'; then
+    cat "$TARGETS_FILE"
+    return 0
+  fi
+
+  local labels
+  labels="$(printf '%s\n' "$selected" | cut -f1)"
+
+  awk -F '\t' '
+    NR == FNR { wanted[$1] = 1; next }
+    FNR in wanted
+  ' <(printf '%s\n' "$labels") "$TARGETS_FILE"
+}
+
+is_dirty() {
+  local repo="$1"
+  [[ -n "$(git -C "$repo" status --porcelain 2>/dev/null)" ]]
+}
+
+current_branch() {
+  local repo="$1"
+  git -C "$repo" symbolic-ref --quiet --short HEAD 2>/dev/null
+}
+
+branch_exists() {
+  local repo="$1"
+  local branch="$2"
+  git -C "$repo" show-ref --verify --quiet "refs/heads/$branch"
+}
+
+branch_checked_out_path() {
+  local repo="$1"
+  local branch="$2"
+  local ref="refs/heads/$branch"
+
+  git -C "$repo" worktree list --porcelain 2>/dev/null \
+    | awk -v ref="$ref" '
+        /^worktree / { worktree = substr($0, 10) }
+        /^branch / && substr($0, 8) == ref { print worktree }
+      '
+}
+
+remote_branch_ref() {
+  local remote="$1"
+  local branch="$2"
+  printf 'refs/remotes/%s/%s' "$remote" "$branch"
+}
+
+write_status() {
+  local status_file="$1"
+  local status="$2"
+  local label="$3"
+  local message="$4"
+  printf '%s\t%s\t%s\n' "$status" "$label" "$message" >"$status_file"
+}
+
+update_one() {
+  local line="$1"
+  local status_file="$2"
+
+  local repo remote branch label
+  IFS=$'\t' read -r repo remote branch label <<<"$line"
+
+  label="${label:-$(target_label "$repo" "$branch")}"
+
+  info "==> $label"
+  info "repo:   $repo"
+  info "remote: $remote"
+  info "branch: $branch"
+  info
+
+  if [[ ! -d "$repo" ]]; then
+    write_status "$status_file" "SKIP" "$label" "repo path does not exist"
+    return 2
+  fi
+
+  if ! git -C "$repo" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    write_status "$status_file" "SKIP" "$label" "not a git worktree"
+    return 2
+  fi
+
+  if ! git -C "$repo" remote get-url "$remote" >/dev/null 2>&1; then
+    write_status "$status_file" "SKIP" "$label" "remote not found: $remote"
+    return 2
+  fi
+
+  info "fetching $remote/$branch ..."
+  if ! git -C "$repo" fetch --prune "$remote" "+refs/heads/$branch:$(remote_branch_ref "$remote" "$branch")"; then
+    write_status "$status_file" "FAIL" "$label" "could not fetch $remote/$branch"
+    return 1
+  fi
+
+  local remote_ref
+  remote_ref="$(remote_branch_ref "$remote" "$branch")"
+
+  if ! git -C "$repo" rev-parse --verify --quiet "$remote_ref" >/dev/null; then
+    write_status "$status_file" "SKIP" "$label" "remote branch not found: $remote/$branch"
+    return 2
+  fi
+
+  local current
+  current="$(current_branch "$repo" || true)"
+
+  if [[ "$current" == "$branch" ]]; then
+    if is_dirty "$repo"; then
+      write_status "$status_file" "SKIP" "$label" "checked-out branch has uncommitted changes"
+      return 2
+    fi
+
+    if ! git -C "$repo" merge-base --is-ancestor "refs/heads/$branch" "$remote_ref"; then
+      write_status "$status_file" "SKIP" "$label" "local branch is not a fast-forward"
+      return 2
+    fi
+
+    info "fast-forwarding checked-out branch ..."
+    if ! git -C "$repo" merge --ff-only "$remote_ref"; then
+      write_status "$status_file" "FAIL" "$label" "ff-only merge failed"
+      return 1
+    fi
+
+    git -C "$repo" branch --set-upstream-to="$remote/$branch" "$branch" >/dev/null 2>&1 || true
+    write_status "$status_file" "OK" "$label" "updated checked-out branch"
+    return 0
+  fi
+
+  local checked_out_path
+  checked_out_path="$(branch_checked_out_path "$repo" "$branch" | awk 'NR == 1 { print }')"
+  if [[ -n "$checked_out_path" ]]; then
+    write_status "$status_file" "SKIP" "$label" "branch is checked out elsewhere: $checked_out_path"
+    return 2
+  fi
+
+  if branch_exists "$repo" "$branch"; then
+    if ! git -C "$repo" merge-base --is-ancestor "refs/heads/$branch" "$remote_ref"; then
+      write_status "$status_file" "SKIP" "$label" "local branch is not a fast-forward"
+      return 2
+    fi
+  fi
+
+  info "fast-forwarding local branch ref ..."
+  if ! git -C "$repo" fetch "$remote" "refs/heads/$branch:refs/heads/$branch"; then
+    write_status "$status_file" "FAIL" "$label" "could not update local branch"
+    return 1
+  fi
+
+  git -C "$repo" branch --set-upstream-to="$remote/$branch" "$branch" >/dev/null 2>&1 || true
+  write_status "$status_file" "OK" "$label" "updated local branch"
+  return 0
+}
+
+scan_completed_statuses() {
+  local run_dir="$1"
+  local total="$2"
+  local reported_file="$run_dir/reported.tsv"
+  touch "$reported_file"
+
+  local status_file id status label message
+  for status_file in "$run_dir"/status-*.tsv; do
+    [[ -e "$status_file" ]] || continue
+    id="$(basename "$status_file" .tsv)"
+    id="${id#status-}"
+
+    if awk -v id="$id" '$1 == id { found = 1 } END { exit found ? 0 : 1 }' "$reported_file"; then
+      continue
+    fi
+
+    IFS=$'\t' read -r status label message <"$status_file"
+    printf '%s\n' "$id" >>"$reported_file"
+    printf '[%s/%s] %-4s  %s - %s\n' "$(wc -l <"$reported_file")" "$total" "$status" "$label" "$message"
+  done
+}
+
+cleanup_old_logs() {
+  local logs_dir="$STATE_DIR/logs"
+  [[ -d "$logs_dir" ]] || return 0
+
+  ls -1dt "$logs_dir"/run-* 2>/dev/null | awk 'NR > 20' | while IFS= read -r old_log; do
+    rm -rf "$old_log"
+  done
+}
+
+update_targets() {
+  ensure_dirs
+  require_cmd git
+
+  local targets=()
+  if [[ "${1:-}" == "--all" ]]; then
+    if [[ ! -s "$TARGETS_FILE" ]]; then
+      info "no saved targets"
+      return 0
+    fi
+    mapfile -t targets <"$TARGETS_FILE"
+  else
+    mapfile -t targets < <(select_targets_for_update)
+  fi
+
+  local total="${#targets[@]}"
+  if (( total == 0 )); then
+    info "no targets selected"
+    return 0
+  fi
+
+  local timestamp run_dir
+  timestamp="$(date +%Y%m%d-%H%M%S)"
+  run_dir="$STATE_DIR/logs/run-$timestamp"
+  mkdir -p "$run_dir"
+  ln -sfn "$run_dir" "$STATE_DIR/logs/latest"
+  printf '%s\n' "${targets[@]}" >"$run_dir/targets.tsv"
+
+  info "updating $total target(s) with up to $MAX_JOBS job(s)"
+  info "logs: $run_dir"
+  info
+
+  local i running
+  for i in "${!targets[@]}"; do
+    while true; do
+      running="$(jobs -rp | wc -l)"
+      if (( running < MAX_JOBS )); then
+        break
+      fi
+      wait -n 2>/dev/null || true
+      scan_completed_statuses "$run_dir" "$total"
+    done
+
+    {
+      update_one "${targets[$i]}" "$run_dir/status-$i.tsv"
+    } >"$run_dir/target-$i.log" 2>&1 &
+  done
+
+  while (( "$(jobs -rp | wc -l)" > 0 )); do
+    wait -n 2>/dev/null || true
+    scan_completed_statuses "$run_dir" "$total"
+  done
+  scan_completed_statuses "$run_dir" "$total"
+
+  local ok skip fail
+  ok="$(awk -F '\t' '$1 == "OK" { count++ } END { print count + 0 }' "$run_dir"/status-*.tsv 2>/dev/null)"
+  skip="$(awk -F '\t' '$1 == "SKIP" { count++ } END { print count + 0 }' "$run_dir"/status-*.tsv 2>/dev/null)"
+  fail="$(awk -F '\t' '$1 == "FAIL" { count++ } END { print count + 0 }' "$run_dir"/status-*.tsv 2>/dev/null)"
+
+  info
+  info "summary: OK=$ok SKIP=$skip FAIL=$fail"
+  info "latest log: $STATE_DIR/logs/latest"
+
+  cleanup_old_logs
+
+  if (( skip > 0 || fail > 0 )); then
+    return 1
+  fi
+  return 0
+}
+
+latest_log() {
+  local latest="$STATE_DIR/logs/latest"
+  if [[ -e "$latest" ]]; then
+    readlink -f "$latest"
+  else
+    info "no update logs yet"
+  fi
+}
+
+menu() {
+  ensure_dirs
+  require_fzf
+
+  local choice
+  choice="$(
+    printf 'Update saved targets\nAdd target\nRemove targets\nList targets\nRefresh repo cache\nLatest log path\n' \
+      | fzf --prompt='git branches> ' --height=60%
+  )" || return 1
+
+  case "$choice" in
+    "Update saved targets")
+      update_targets || true
+      pause_to_close
+      ;;
+    "Add target")
+      add_target || true
+      pause_to_close
+      ;;
+    "Remove targets")
+      remove_targets || true
+      pause_to_close
+      ;;
+    "List targets")
+      list_targets
+      pause_to_close
+      ;;
+    "Refresh repo cache")
+      refresh_cache
+      pause_to_close
+      ;;
+    "Latest log path")
+      latest_log
+      pause_to_close
+      ;;
+  esac
+}
+
+popup() {
+  require_cmd tmux
+
+  if [[ -z "${TMUX:-}" ]]; then
+    menu
+    return
+  fi
+
+  tmux display-popup -E -w 90% -h 80% "$0 menu"
+}
+
+main() {
+  case "${1:-}" in
+    menu)
+      menu
+      ;;
+    popup)
+      popup
+      ;;
+    add)
+      add_target
+      ;;
+    remove)
+      remove_targets
+      ;;
+    list)
+      list_targets
+      ;;
+    update)
+      shift
+      update_targets "$@"
+      ;;
+    refresh-cache)
+      refresh_cache
+      ;;
+    latest-log)
+      latest_log
+      ;;
+    -h|--help|help)
+      usage
+      ;;
+    "")
+      usage
+      exit 1
+      ;;
+    *)
+      usage >&2
+      exit 1
+      ;;
+  esac
+}
+
+main "$@"

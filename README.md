@@ -114,7 +114,36 @@ Tmux hotkeys:
 
 - Ctrl+b prefixes all hotkeys
 - \ to open picker menu
+- u to open the git branch updater menu
 - w to pick between windows/sessions
 - % to split horizontally
 - " to split vertically
 - hjkl to switch panes
+
+# Git Branch Updater
+
+This config includes `~/.local/bin/git-branch-updater`, a tmux/fzf helper for saving repo branches and fast-forwarding them later.
+
+Dependencies:
+
+- `git`
+- `fzf`
+- `fd` or `fdfind`
+- `tmux`
+
+Usage:
+
+- `Ctrl+b u`: open the updater menu in a tmux popup
+- `git-branch-updater add`: pick a repo and remote branch to save
+- `git-branch-updater remove`: remove saved targets
+- `git-branch-updater update`: pick saved targets and update them
+- `git-branch-updater update --all`: update all saved targets
+- `git-branch-updater refresh-cache`: rescan `~/` for git repos
+
+State is machine-local:
+
+- Targets: `~/.local/share/git-branch-updater/targets.tsv`
+- Repo cache: `~/.cache/git-branch-updater/repos.txt`
+- Logs: `~/.local/state/git-branch-updater/logs`
+
+Updates are conservative: checked-out branches must be clean, branch updates are fast-forward only, and divergent or locked branches are skipped instead of merged, rebased, stashed, or force-updated.
