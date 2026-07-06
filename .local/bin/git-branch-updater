@@ -412,6 +412,13 @@ remote_branch_ref() {
   printf 'refs/remotes/%s/%s' "$remote" "$branch"
 }
 
+commits_behind() {
+  local repo="$1"
+  local from_ref="$2"
+  local to_ref="$3"
+  git -C "$repo" rev-list --count "$from_ref..$to_ref" 2>/dev/null
+}
+
 write_status() {
   local status_file="$1"
   local status="$2"
@@ -478,14 +485,22 @@ update_one() {
       return 2
     fi
 
-    info "fast-forwarding checked-out branch ..."
+    local behind
+    behind="$(commits_behind "$repo" "refs/heads/$branch" "$remote_ref")"
+
+    if [[ "$behind" == "0" ]]; then
+      write_status "$status_file" "OK" "$label" "already up to date"
+      return 0
+    fi
+
+    info "fast-forwarding checked-out branch ($behind commit$([[ "$behind" == "1" ]] || printf 's'))..."
     if ! git -C "$repo" merge --ff-only "$remote_ref"; then
       write_status "$status_file" "FAIL" "$label" "ff-only merge failed"
       return 1
     fi
 
     git -C "$repo" branch --set-upstream-to="$remote/$branch" "$branch" >/dev/null 2>&1 || true
-    write_status "$status_file" "OK" "$label" "updated checked-out branch"
+    write_status "$status_file" "OK" "$label" "fast-forwarded checked-out branch by $behind commit$([[ "$behind" == "1" ]] || printf 's')"
     return 0
   fi
 
@@ -496,21 +511,40 @@ update_one() {
     return 2
   fi
 
+  local behind=""
+  local had_local_branch=0
   if branch_exists "$repo" "$branch"; then
+    had_local_branch=1
     if ! git -C "$repo" merge-base --is-ancestor "refs/heads/$branch" "$remote_ref"; then
       write_status "$status_file" "SKIP" "$label" "local branch is not a fast-forward"
       return 2
     fi
+
+    behind="$(commits_behind "$repo" "refs/heads/$branch" "$remote_ref")"
+    if [[ "$behind" == "0" ]]; then
+      write_status "$status_file" "OK" "$label" "already up to date"
+      return 0
+    fi
   fi
 
-  info "fast-forwarding local branch ref ..."
+  if (( had_local_branch )); then
+    info "fast-forwarding local branch ref ($behind commit$([[ "$behind" == "1" ]] || printf 's'))..."
+  else
+    info "creating local branch ref ..."
+  fi
+
   if ! git -C "$repo" fetch "$remote" "refs/heads/$branch:refs/heads/$branch"; then
     write_status "$status_file" "FAIL" "$label" "could not update local branch"
     return 1
   fi
 
   git -C "$repo" branch --set-upstream-to="$remote/$branch" "$branch" >/dev/null 2>&1 || true
-  write_status "$status_file" "OK" "$label" "updated local branch"
+
+  if (( had_local_branch )); then
+    write_status "$status_file" "OK" "$label" "fast-forwarded local branch by $behind commit$([[ "$behind" == "1" ]] || printf 's')"
+  else
+    write_status "$status_file" "OK" "$label" "created local branch"
+  fi
   return 0
 }
 
