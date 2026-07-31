@@ -427,9 +427,53 @@ write_status() {
   printf '%s\t%s\t%s\n' "$status" "$label" "$message" >"$status_file"
 }
 
+fetch_target_remotes() {
+  local failures_file="$1"
+  shift
+
+  : >"$failures_file"
+
+  local -A seen=()
+  local line repo remote branch label key
+  for line in "$@"; do
+    IFS=$'\t' read -r repo remote branch label <<<"$line"
+    key="$repo"$'\t'"$remote"
+
+    if [[ -n "${seen[$key]+set}" ]]; then
+      continue
+    fi
+    seen["$key"]=1
+
+    if [[ ! -d "$repo" ]] \
+      || ! git -C "$repo" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
+      || ! git -C "$repo" remote get-url "$remote" >/dev/null 2>&1; then
+      continue
+    fi
+
+    info "fetching $remote in $repo ..."
+    if ! git -C "$repo" fetch --prune "$remote"; then
+      printf '%s\t%s\n' "$repo" "$remote" >>"$failures_file"
+      info "full fetch failed; saved branch updates will retry individually"
+    fi
+  done
+}
+
+remote_fetch_failed() {
+  local failures_file="$1"
+  local repo="$2"
+  local remote="$3"
+
+  awk -F '\t' \
+    -v repo="$repo" \
+    -v remote="$remote" \
+    '$1 == repo && $2 == remote { found = 1 } END { exit found ? 0 : 1 }' \
+    "$failures_file"
+}
+
 update_one() {
   local line="$1"
   local status_file="$2"
+  local fetch_failures_file="$3"
 
   local repo remote branch label
   IFS=$'\t' read -r repo remote branch label <<<"$line"
@@ -457,10 +501,12 @@ update_one() {
     return 2
   fi
 
-  info "fetching $remote/$branch ..."
-  if ! git -C "$repo" fetch --prune "$remote" "+refs/heads/$branch:$(remote_branch_ref "$remote" "$branch")"; then
-    write_status "$status_file" "FAIL" "$label" "could not fetch $remote/$branch"
-    return 1
+  if remote_fetch_failed "$fetch_failures_file" "$repo" "$remote"; then
+    info "retrying fetch for $remote/$branch ..."
+    if ! git -C "$repo" fetch --prune "$remote" "+refs/heads/$branch:$(remote_branch_ref "$remote" "$branch")"; then
+      write_status "$status_file" "FAIL" "$label" "could not fetch $remote/$branch"
+      return 1
+    fi
   fi
 
   local remote_ref
@@ -611,6 +657,10 @@ update_targets() {
   info "logs: $run_dir"
   info
 
+  local fetch_failures_file="$run_dir/fetch-failures.tsv"
+  fetch_target_remotes "$fetch_failures_file" "${targets[@]}"
+  info
+
   local i running
   for i in "${!targets[@]}"; do
     while true; do
@@ -623,7 +673,7 @@ update_targets() {
     done
 
     {
-      update_one "${targets[$i]}" "$run_dir/status-$i.tsv"
+      update_one "${targets[$i]}" "$run_dir/status-$i.tsv" "$fetch_failures_file"
     } >"$run_dir/target-$i.log" 2>&1 &
   done
 
