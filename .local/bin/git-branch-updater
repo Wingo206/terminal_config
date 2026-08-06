@@ -427,46 +427,51 @@ write_status() {
   printf '%s\t%s\t%s\n' "$status" "$label" "$message" >"$status_file"
 }
 
-fetch_target_remotes() {
+fetch_repo_remotes() {
   local failures_file="$1"
-  shift
+  local status_file="$2"
+  shift 2
 
   : >"$failures_file"
+  : >"$status_file"
 
   local -A seen=()
-  local line repo remote branch label key
+  local line repo remote branch label
   for line in "$@"; do
     IFS=$'\t' read -r repo remote branch label <<<"$line"
-    key="$repo"$'\t'"$remote"
 
-    if [[ -n "${seen[$key]+set}" ]]; then
+    if [[ -n "${seen[$remote]+set}" ]]; then
       continue
     fi
-    seen["$key"]=1
+    seen["$remote"]=1
 
     if [[ ! -d "$repo" ]] \
-      || ! git -C "$repo" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
-      || ! git -C "$repo" remote get-url "$remote" >/dev/null 2>&1; then
+      || ! git -C "$repo" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+      printf 'SKIP\t%s\trepo unavailable\n' "$remote" >>"$status_file"
       continue
     fi
 
-    info "fetching $remote in $repo ..."
-    if ! git -C "$repo" fetch --prune "$remote"; then
-      printf '%s\t%s\n' "$repo" "$remote" >>"$failures_file"
-      info "full fetch failed; saved branch updates will retry individually"
+    if ! git -C "$repo" remote get-url "$remote" >/dev/null 2>&1; then
+      printf 'SKIP\t%s\tremote not found\n' "$remote" >>"$status_file"
+      continue
+    fi
+
+    info "fetching $remote ..."
+    if git -C "$repo" fetch --prune "$remote"; then
+      printf 'OK\t%s\tfetched\n' "$remote" >>"$status_file"
+    else
+      printf '%s\n' "$remote" >>"$failures_file"
+      printf 'RETRY\t%s\tfull fetch failed; retrying selected branches\n' "$remote" >>"$status_file"
     fi
   done
 }
 
 remote_fetch_failed() {
   local failures_file="$1"
-  local repo="$2"
-  local remote="$3"
+  local remote="$2"
 
-  awk -F '\t' \
-    -v repo="$repo" \
-    -v remote="$remote" \
-    '$1 == repo && $2 == remote { found = 1 } END { exit found ? 0 : 1 }' \
+  awk -v remote="$remote" \
+    '$0 == remote { found = 1 } END { exit found ? 0 : 1 }' \
     "$failures_file"
 }
 
@@ -474,6 +479,7 @@ update_one() {
   local line="$1"
   local status_file="$2"
   local fetch_failures_file="$3"
+  local fetch_retry_results_file="$4"
 
   local repo remote branch label
   IFS=$'\t' read -r repo remote branch label <<<"$line"
@@ -501,12 +507,14 @@ update_one() {
     return 2
   fi
 
-  if remote_fetch_failed "$fetch_failures_file" "$repo" "$remote"; then
+  if remote_fetch_failed "$fetch_failures_file" "$remote"; then
     info "retrying fetch for $remote/$branch ..."
     if ! git -C "$repo" fetch --prune "$remote" "+refs/heads/$branch:$(remote_branch_ref "$remote" "$branch")"; then
+      printf 'FAILED\t%s\n' "$remote" >>"$fetch_retry_results_file"
       write_status "$status_file" "FAIL" "$label" "could not fetch $remote/$branch"
       return 1
     fi
+    printf 'RECOVERED\t%s\n' "$remote" >>"$fetch_retry_results_file"
   fi
 
   local remote_ref
@@ -594,26 +602,152 @@ update_one() {
   return 0
 }
 
-scan_completed_statuses() {
+update_repo() {
+  local repo="$1"
+  local targets_file="$2"
+  local repo_dir="$3"
+  local repo_status_file="$4"
+
+  local targets=()
+  mapfile -t targets <"$targets_file"
+
+  local fetch_failures_file="$repo_dir/fetch-failures.txt"
+  local fetch_status_file="$repo_dir/fetch-status.tsv"
+  local fetch_retry_results_file="$repo_dir/fetch-retry-results.tsv"
+  : >"$fetch_retry_results_file"
+
+  info "==> $(basename "$repo")"
+  info "repo: $repo"
+  info
+
+  fetch_repo_remotes "$fetch_failures_file" "$fetch_status_file" "${targets[@]}"
+  info
+
+  local i
+  for i in "${!targets[@]}"; do
+    update_one \
+      "${targets[$i]}" \
+      "$repo_dir/status-$i.tsv" \
+      "$fetch_failures_file" \
+      "$fetch_retry_results_file" || true
+  done
+
+  local updated unchanged skipped failed
+  updated="$(awk -F '\t' '$1 == "OK" && $3 != "already up to date" { count++ } END { print count + 0 }' "$repo_dir"/status-*.tsv)"
+  unchanged="$(awk -F '\t' '$1 == "OK" && $3 == "already up to date" { count++ } END { print count + 0 }' "$repo_dir"/status-*.tsv)"
+  skipped="$(awk -F '\t' '$1 == "SKIP" { count++ } END { print count + 0 }' "$repo_dir"/status-*.tsv)"
+  failed="$(awk -F '\t' '$1 == "FAIL" { count++ } END { print count + 0 }' "$repo_dir"/status-*.tsv)"
+
+  local fetch_ok=0 fetch_recovered=0 fetch_skipped=0 fetch_failed=0
+  local fetch_state remote fetch_message
+  while IFS=$'\t' read -r fetch_state remote fetch_message; do
+    case "$fetch_state" in
+      OK)
+        ((fetch_ok++))
+        ;;
+      SKIP)
+        ((fetch_skipped++))
+        ;;
+      RETRY)
+        if awk -F '\t' -v remote="$remote" \
+          '$1 == "FAILED" && $2 == remote { found = 1 } END { exit found ? 0 : 1 }' \
+          "$fetch_retry_results_file"; then
+          ((fetch_failed++))
+        else
+          ((fetch_recovered++))
+        fi
+        ;;
+    esac
+  done <"$fetch_status_file"
+
+  local fetch_total=$((fetch_ok + fetch_recovered + fetch_skipped + fetch_failed))
+  local fetch_summary
+  if (( fetch_total == 1 )); then
+    IFS=$'\t' read -r fetch_state remote fetch_message <"$fetch_status_file"
+    case "$fetch_state" in
+      OK)
+        fetch_summary="fetched $remote"
+        ;;
+      SKIP)
+        fetch_summary="fetch skipped: $remote"
+        ;;
+      RETRY)
+        if (( fetch_failed > 0 )); then
+          fetch_summary="fetch failed: $remote"
+        else
+          fetch_summary="fetched $remote after retry"
+        fi
+        ;;
+    esac
+  else
+    fetch_summary="fetches: $fetch_ok ok, $fetch_recovered recovered, $fetch_skipped skipped, $fetch_failed failed"
+  fi
+
+  local repo_status="OK"
+  if (( failed > 0 || fetch_failed > 0 )); then
+    repo_status="FAIL"
+  elif (( skipped > 0 || fetch_skipped > 0 )); then
+    repo_status="WARN"
+  fi
+
+  local summary="$fetch_summary; $updated updated, $unchanged unchanged"
+  if (( skipped > 0 )); then
+    summary+=", $skipped skipped"
+  fi
+  if (( failed > 0 )); then
+    summary+=", $failed failed"
+  fi
+
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    "$repo_status" "$(basename "$repo")" "$summary" \
+    "$updated" "$unchanged" "$skipped" "$failed" \
+    "$fetch_ok" "$fetch_recovered" "$fetch_skipped" "$fetch_failed" \
+    >"$repo_status_file"
+}
+
+scan_completed_repos() {
   local run_dir="$1"
   local total="$2"
   local reported_file="$run_dir/reported.tsv"
   touch "$reported_file"
 
-  local status_file id status label message
-  for status_file in "$run_dir"/status-*.tsv; do
+  local status_file id status label message unused
+  for status_file in "$run_dir"/repo-status-*.tsv; do
     [[ -e "$status_file" ]] || continue
     id="$(basename "$status_file" .tsv)"
-    id="${id#status-}"
+    id="${id#repo-status-}"
 
     if awk -v id="$id" '$1 == id { found = 1 } END { exit found ? 0 : 1 }' "$reported_file"; then
       continue
     fi
 
-    IFS=$'\t' read -r status label message <"$status_file"
+    IFS=$'\t' read -r status label message unused <"$status_file"
     printf '%s\n' "$id" >>"$reported_file"
-    printf '[%s/%s] %-4s  %s - %s\n' "$(wc -l <"$reported_file")" "$total" "$status" "$label" "$message"
+    printf '[%s/%s] %-4s %s - %s\n' "$(wc -l <"$reported_file")" "$total" "$status" "$label" "$message"
+
+    if [[ "$status" != "OK" ]]; then
+      local branch_status_file branch_status branch_label branch_message
+      for branch_status_file in "$run_dir/repo-$id"/status-*.tsv; do
+        [[ -e "$branch_status_file" ]] || continue
+        IFS=$'\t' read -r branch_status branch_label branch_message <"$branch_status_file"
+        if [[ "$branch_status" == "SKIP" || "$branch_status" == "FAIL" ]]; then
+          printf '      %-4s %s - %s\n' "$branch_status" "$branch_label" "$branch_message"
+        fi
+      done
+    fi
   done
+}
+
+stop_update_workers() {
+  local exit_code="$1"
+  local pid
+  for pid in $(jobs -rp); do
+    kill "$pid" 2>/dev/null || true
+  done
+  wait 2>/dev/null || true
+  info
+  info "update cancelled"
+  exit "$exit_code"
 }
 
 cleanup_old_logs() {
@@ -646,55 +780,102 @@ update_targets() {
     return 0
   fi
 
+  if [[ ! "$MAX_JOBS" =~ ^[1-9][0-9]*$ ]]; then
+    die "GIT_BRANCH_UPDATER_JOBS must be a positive integer"
+  fi
+
   local timestamp run_dir
   timestamp="$(date +%Y%m%d-%H%M%S)"
   run_dir="$STATE_DIR/logs/run-$timestamp"
+  local run_suffix=1
+  while [[ -e "$run_dir" ]]; do
+    run_dir="$STATE_DIR/logs/run-$timestamp-$run_suffix"
+    ((run_suffix++))
+  done
   mkdir -p "$run_dir"
   ln -sfn "$run_dir" "$STATE_DIR/logs/latest"
   printf '%s\n' "${targets[@]}" >"$run_dir/targets.tsv"
 
-  info "updating $total target(s) with up to $MAX_JOBS job(s)"
+  local -A repo_ids=()
+  local repos=()
+  local line repo remote branch label repo_id
+  for line in "${targets[@]}"; do
+    IFS=$'\t' read -r repo remote branch label <<<"$line"
+    if [[ -z "${repo_ids[$repo]+set}" ]]; then
+      repo_id="${#repos[@]}"
+      repo_ids["$repo"]="$repo_id"
+      repos+=("$repo")
+      mkdir -p "$run_dir/repo-$repo_id"
+      : >"$run_dir/repo-$repo_id/targets.tsv"
+    else
+      repo_id="${repo_ids[$repo]}"
+    fi
+    printf '%s\n' "$line" >>"$run_dir/repo-$repo_id/targets.tsv"
+  done
+
+  local repo_total="${#repos[@]}"
+  info "updating $total target(s) across $repo_total repo(s) with up to $MAX_JOBS job(s)"
   info "logs: $run_dir"
   info
 
-  local fetch_failures_file="$run_dir/fetch-failures.tsv"
-  fetch_target_remotes "$fetch_failures_file" "${targets[@]}"
-  info
-
   local i running
-  for i in "${!targets[@]}"; do
+  trap 'stop_update_workers 130' INT
+  trap 'stop_update_workers 143' TERM
+
+  for i in "${!repos[@]}"; do
     while true; do
       running="$(jobs -rp | wc -l)"
       if (( running < MAX_JOBS )); then
         break
       fi
       wait -n 2>/dev/null || true
-      scan_completed_statuses "$run_dir" "$total"
+      scan_completed_repos "$run_dir" "$repo_total"
     done
 
     {
-      update_one "${targets[$i]}" "$run_dir/status-$i.tsv" "$fetch_failures_file"
-    } >"$run_dir/target-$i.log" 2>&1 &
+      update_repo \
+        "${repos[$i]}" \
+        "$run_dir/repo-$i/targets.tsv" \
+        "$run_dir/repo-$i" \
+        "$run_dir/repo-status-$i.tsv"
+    } >"$run_dir/repo-$i.log" 2>&1 &
   done
 
   while (( "$(jobs -rp | wc -l)" > 0 )); do
     wait -n 2>/dev/null || true
-    scan_completed_statuses "$run_dir" "$total"
+    scan_completed_repos "$run_dir" "$repo_total"
   done
-  scan_completed_statuses "$run_dir" "$total"
+  scan_completed_repos "$run_dir" "$repo_total"
 
-  local ok skip fail
-  ok="$(awk -F '\t' '$1 == "OK" { count++ } END { print count + 0 }' "$run_dir"/status-*.tsv 2>/dev/null)"
-  skip="$(awk -F '\t' '$1 == "SKIP" { count++ } END { print count + 0 }' "$run_dir"/status-*.tsv 2>/dev/null)"
-  fail="$(awk -F '\t' '$1 == "FAIL" { count++ } END { print count + 0 }' "$run_dir"/status-*.tsv 2>/dev/null)"
+  trap - INT TERM
+
+  local repo_ok repo_warn repo_fail
+  repo_ok="$(awk -F '\t' '$1 == "OK" { count++ } END { print count + 0 }' "$run_dir"/repo-status-*.tsv)"
+  repo_warn="$(awk -F '\t' '$1 == "WARN" { count++ } END { print count + 0 }' "$run_dir"/repo-status-*.tsv)"
+  repo_fail="$(awk -F '\t' '$1 == "FAIL" { count++ } END { print count + 0 }' "$run_dir"/repo-status-*.tsv)"
+
+  local updated unchanged skipped failed
+  updated="$(awk -F '\t' '{ count += $4 } END { print count + 0 }' "$run_dir"/repo-status-*.tsv)"
+  unchanged="$(awk -F '\t' '{ count += $5 } END { print count + 0 }' "$run_dir"/repo-status-*.tsv)"
+  skipped="$(awk -F '\t' '{ count += $6 } END { print count + 0 }' "$run_dir"/repo-status-*.tsv)"
+  failed="$(awk -F '\t' '{ count += $7 } END { print count + 0 }' "$run_dir"/repo-status-*.tsv)"
+
+  local fetch_ok fetch_recovered fetch_skipped fetch_failed
+  fetch_ok="$(awk -F '\t' '{ count += $8 } END { print count + 0 }' "$run_dir"/repo-status-*.tsv)"
+  fetch_recovered="$(awk -F '\t' '{ count += $9 } END { print count + 0 }' "$run_dir"/repo-status-*.tsv)"
+  fetch_skipped="$(awk -F '\t' '{ count += $10 } END { print count + 0 }' "$run_dir"/repo-status-*.tsv)"
+  fetch_failed="$(awk -F '\t' '{ count += $11 } END { print count + 0 }' "$run_dir"/repo-status-*.tsv)"
 
   info
-  info "summary: OK=$ok SKIP=$skip FAIL=$fail"
+  info "summary:"
+  info "  repos:    OK=$repo_ok WARN=$repo_warn FAIL=$repo_fail"
+  info "  fetches:  OK=$fetch_ok RECOVERED=$fetch_recovered SKIP=$fetch_skipped FAIL=$fetch_failed"
+  info "  branches: UPDATED=$updated UNCHANGED=$unchanged SKIP=$skipped FAIL=$failed"
   info "latest log: $STATE_DIR/logs/latest"
 
   cleanup_old_logs
 
-  if (( skip > 0 || fail > 0 )); then
+  if (( repo_warn > 0 || repo_fail > 0 )); then
     return 1
   fi
   return 0
