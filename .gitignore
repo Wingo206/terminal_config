@@ -1,2 +1,3 @@
 /old
 .config/github-copilot
+.agents/skills/**/evidence.md
