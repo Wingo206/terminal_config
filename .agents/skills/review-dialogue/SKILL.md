@@ -26,6 +26,19 @@ The goal of the investigation is orientation and intuition—painting a concise 
 rather than an exhaustive code trace, commit log, or step-by-step reasoning chain. Understanding
 checks and follow-up questions can then zoom into technical specifics where needed.
 
+### Investigation rules
+
+- When reviewing a stacked PR or revisiting a PR after author updates, read only the matching
+  `~/pr-reviews/pr-<number>-review.md` files for that PR or stack rather than every file in
+  `~/pr-reviews/`.
+- Because `~/pr-reviews/` is outside the repo workspace, Cursor's `Glob` and `Grep` tools silently
+  fall back to the workspace root. Use `Read` directly when you know the PR number, or `rg` / `head`
+  via `Shell` on `~/pr-reviews/` when searching across prior reviews.
+- When the reviewer references a prior review note or a Linear issue they think they created, check
+  `~/pr-reviews/` and run a couple of targeted Linear queries; if it does not turn up, say so and
+  offer to create it rather than searching external notes (such as Obsidian vaults) or agent
+  transcripts unless explicitly asked.
+
 ## Explanations read as natural prose
 
 Findings are easiest to follow when written in plain, flowing sentences rather than code-heavy
@@ -34,23 +47,57 @@ shorthand.
 Because each thread already anchors its target file and line, explanations can refer to
 collaborators by their role in plain English—such as the shared items store, the dialog, or the
 list route—and use backticked identifiers only when a specific symbol or type name is itself the
-point of discussion. Avoid parenthetical asides, inline code chunks, or symbol lists mid-sentence
-that break up the reading flow.
+point of discussion.
+
+### Prose rules
+
+- Write per-thread explanations in natural, conversational prose as if talking directly to the
+  reviewer in chat.
+- Avoid parenthetical asides, inline code chunks, call chains, or walls of symbol names
+  mid-sentence that break up the reading flow.
 
 ## The review workbench organizes the parallel threads
 
-A local markdown file, `pr-<number>-review.md`, serves as the shared workbench for the review,
-organized vertically by discussion thread or by review round when revisiting an archived review in
-`~/pr-reviews/` after author updates.
+A local markdown file, `pr-<number>-review.md`, serves as the shared workbench for the active
+review, and completed reviews live in `~/pr-reviews/pr-<number>-review.md` with stack links,
+follow-up Linear issues, and posted comment links in the top header block.
 
-On the first turn, each thread's initial explanation lives in the workbench and is written as if
-talking directly to the reviewer in chat—making it easy to read and keep track of multiple parallel
-threads in one place without scrolling through a long first chat message.
+Keeping the detailed breakdown in the workbench makes it easy to read and track multiple parallel
+threads in one place without scrolling through a long first chat message, while the ongoing
+back-and-forth exploration happens naturally in chat.
 
-From there, the back-and-forth exploration happens naturally in chat. As an idea settles or a
-comment is drafted, the thread's section in the workbench updates in place to record the outcome
-beneath the explanation: a `**Draft comment:**` when feedback is warranted, or a brief
-`**Resolution:**` when the thread is deferred or complete.
+### Working with the workbench
+
+- Organize `pr-<number>-review.md` vertically by discussion thread, or by review round when
+  re-opening an archived review from `~/pr-reviews/` after author updates or pulling forward
+  deferred notes from earlier PRs in the stack.
+- Include the GitHub PR link near the top of the file and anchor each thread with a `**Target:**`
+  listing the repo-root file path and diff line or line range, such as
+  `` `mach9-cloud/path/to/file.ts:23` `` or `` `mach9-cloud/path/to/file.ts:15-24` ``.
+- On the first turn, write the full per-thread explanations into `pr-<number>-review.md` and give a
+  concise overview of the threads in chat rather than repeating the full breakdown.
+- Keep the ongoing discussion in chat, and update the thread's section in the workbench in place as
+  an idea settles to record the outcome beneath the explanation:
+  - `**Draft comment:**` (or ``**Draft comment (`mach9-cloud/path/to/file.ts:23`):**`` when a thread
+    lists multiple target files and the comment anchors to a specific one) for an inline PR comment.
+  - `**Draft summary:**` in an overview section when the reviewer wants a top-level review body.
+  - `**Resolution:**` when the thread is deferred, tracked only in Linear, or resolved without a PR
+    comment.
+
+### Publishing and archiving
+
+- Keep publishing separate until the reviewer explicitly asks to post comments to GitHub or create
+  Linear issues.
+- Create any agreed follow-up Linear issues first so their links can be included in the workbench
+  and draft comments, then run `python3 ~/.cursor/skills/review-dialogue/publish-review.py` as a
+  whole (`publish pr-<number>-review.md`) or step by step when recovering or staging:
+  - `check pr-<number>-review.md`: validate `**Target:**` paths and diff hunk lines against GitHub
+    without mutating anything.
+  - `post pr-<number>-review.md`: publish remaining `**Draft summary:**` and `**Draft comment:**`
+    blocks to GitHub and convert them in place to `**Posted comment ([link](...)):**` so re-runs
+    are idempotent.
+  - `archive pr-<number>-review.md`: stamp the active Cursor transcript link into the header and
+    move the workbench to `~/pr-reviews/`.
 
 ## Alignment determines the disposition of each thread
 
@@ -82,25 +129,16 @@ rather than tracing every internal symbol or prescribing low-level details of th
 3. **Recommendation:** End with a direct, principle-backed `**Suggestion:** ...` or
    `**note (non-blocking):** ...` stating the conceptual change or boundary to aim for.
 
-When the reviewer asks for an overall review summary, follow their lead on tone, priorities, and
-what came together well—inline comments naturally focus on what to change, whereas the top-level
-summary is where the reviewer highlights positive takeaways alongside the main ask.
+### Drafting rules
+
+- Preserve the reviewer's voice, motivation, and framing when refining their drafts and overall
+  review summary.
+- When the reviewer asks for an overall review summary, follow their lead on tone, priorities, and
+  what came together well—inline comments naturally focus on what to change, whereas the top-level
+  summary is where the reviewer highlights positive takeaways alongside the main ask.
 
 ## Agent posture
 
 - Read and follow [Design Dialogue](../design-dialogue/SKILL.md) as the conversational foundation.
-- On the first turn, write the per-thread explanations into `pr-<number>-review.md` in natural,
-  conversational prose without parenthetical code chunks or walls of symbol names, and give a
-  concise overview of the threads in chat rather than repeating the full breakdown.
-- When revisiting a PR after author updates, re-open its workbench in `~/pr-reviews/` or pull
-  forward deferred notes from earlier PRs in the stack and append the new round.
-- Keep the ongoing discussion in chat, and update the workbench when an idea settles or when
-  staging a `**Draft comment:**` or `**Resolution:**` beneath a thread's notes.
 - Let the reviewer pace the traversal through the threads.
-- Preserve the reviewer's voice, motivation, and framing when refining their drafts and overall
-  review summary.
-- Keep publishing separate until the reviewer explicitly asks to post comments to GitHub or create
-  Linear issues.
-- Once the review is published and complete, add the posted comment links, follow-up issue links,
-  and a link to the current Cursor agent transcript in `agent-transcripts/` to the top of the
-  review file, and move it into `~/pr-reviews/`.
+- Keep settled material compressed in chat while recording the durable state in the workbench.
