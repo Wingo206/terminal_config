@@ -818,26 +818,62 @@ def step_post(
         print(f"  - {c.section_title}: {c.posted_url}")
 
 
-def find_latest_transcript() -> tuple[str, str] | None:
+def find_latest_transcript(workbench_path: Path | None = None) -> tuple[str, str] | None:
     projects_dir = Path.home() / ".cursor" / "projects"
-    if not projects_dir.exists():
-        return None
+    conv_id = os.environ.get("CURSOR_CONVERSATION_ID", "").strip()
+    env_transcripts_dir = os.environ.get("AGENT_TRANSCRIPTS", "").strip()
 
-    candidates: list[tuple[float, Path]] = []
-    for jsonl in projects_dir.glob("*/agent-transcripts/*/*.jsonl"):
-        if "subagents" in jsonl.parts:
-            continue
-        try:
-            candidates.append((jsonl.stat().st_mtime, jsonl))
-        except OSError:
-            continue
+    if conv_id:
+        if env_transcripts_dir:
+            for candidate in (
+                Path(env_transcripts_dir) / conv_id / f"{conv_id}.jsonl",
+                Path(env_transcripts_dir) / f"{conv_id}.jsonl",
+            ):
+                if candidate.exists():
+                    return conv_id, str(candidate)
+        if projects_dir.exists():
+            for match in projects_dir.glob(f"*/agent-transcripts/{conv_id}/{conv_id}.jsonl"):
+                return conv_id, str(match)
 
-    if not candidates:
-        return None
+    scoped_dirs: list[Path] = []
+    if env_transcripts_dir:
+        env_path = Path(env_transcripts_dir)
+        if env_path.is_dir():
+            scoped_dirs.append(env_path)
 
-    candidates.sort(key=lambda item: item[0], reverse=True)
-    latest_path = candidates[0][1]
-    return latest_path.stem, str(latest_path)
+    if projects_dir.exists():
+        roots = [Path.cwd()]
+        if workbench_path is not None:
+            roots.insert(0, workbench_path.parent)
+        for root in roots:
+            for directory in (root.resolve(), *root.resolve().parents):
+                slug = re.sub(r"[^a-zA-Z0-9]+", "-", str(directory).lstrip("/")).strip("-")
+                if not slug:
+                    continue
+                candidate_dir = projects_dir / slug / "agent-transcripts"
+                if candidate_dir.is_dir() and candidate_dir not in scoped_dirs:
+                    scoped_dirs.append(candidate_dir)
+
+    search_groups = [
+        [p for d in scoped_dirs for p in d.glob("*/*.jsonl")],
+        list(projects_dir.glob("*/agent-transcripts/*/*.jsonl")) if projects_dir.exists() else [],
+    ]
+
+    for group in search_groups:
+        candidates: list[tuple[float, Path]] = []
+        for jsonl in group:
+            if "subagents" in jsonl.parts:
+                continue
+            try:
+                candidates.append((jsonl.stat().st_mtime, jsonl))
+            except OSError:
+                continue
+        if candidates:
+            candidates.sort(key=lambda item: item[0], reverse=True)
+            latest_path = candidates[0][1]
+            return latest_path.stem, str(latest_path)
+
+    return None
 
 
 def step_archive(workbench_path: Path, explicit_transcript: str | None = None) -> Path:
@@ -846,7 +882,7 @@ def step_archive(workbench_path: Path, explicit_transcript: str | None = None) -
         t_path = Path(explicit_transcript).expanduser()
         transcript = (t_path.stem, str(t_path))
     else:
-        transcript = find_latest_transcript()
+        transcript = find_latest_transcript(workbench_path)
 
     updated_lines = insert_header_metadata(
         lines=workbench.lines,
