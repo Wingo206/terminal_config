@@ -74,18 +74,34 @@ hide, or scope out a subsystem:
   lookalikes from that pattern that were still kept unviewed because they mixed the pattern with
   another behavioral change.
 
-## Execution mechanics
+## Tools
 
-- Fetch the PR node ID and full diff using `gh pr view <num> --json id` and `gh pr diff <num>`.
-  Rely on `gh pr diff` or paginated GraphQL rather than `gh pr view --json files` alone, which caps
-  at 100 files on large PRs.
-- Mark files as viewed using GitHub's `markFileAsViewed` GraphQL mutation with aliased fields,
-  batching 8–10 files per `gh api graphql` call so GitHub does not time out on large transactions:
+The scripts in `~/.cursor/skills/mark-viewed/scripts/` handle the GitHub plumbing: pagination past
+100 files, diff splitting, batched mutations, and verification. Run them as `python3 <script>`.
+Don't hand-write `markFileAsViewed` mutations or diff splitters. Each script takes a PR number or
+URL; pass `--repo owner/name` with a bare number when the cwd is not that repo. Run any script with
+`-h` for its full options.
 
-```bash
-gh api graphql -f query='
-mutation {
-  f1: markFileAsViewed(input: { pullRequestId: "PR_...", path: "path/to/fileA.ts" }) { clientMutationId }
-  f2: markFileAsViewed(input: { pullRequestId: "PR_...", path: "path/to/fileB.ts" }) { clientMutationId }
-}'
-```
+- **`fetch.py <pr>`** — start here. It caches the PR at its head SHA under `/tmp/mark-viewed/` and
+  prints the file table: change type, +/-, viewed state, and facts. Each file's diff lands in
+  `<snapshot>/files/<path>.diff`, next to `body.md`. When the URL carries a `#diff-<sha>` anchor, it
+  also prints the file the anchor points at. Facts are only what cannot be wrong: `deleted`,
+  `pure-rename`, `no-diff`, and with `--same-as <ref>`, `identical-to:<ref>` or `absent-in:<ref>`.
+  Use `--same-as origin/develop` for a stacked PR whose base has merged. Facts are evidence for the
+  classification, not the classification itself.
+- **`show.py <pr> [paths…]`** — print cached diffs. Paths may be suffixes such as
+  `HomeShell.tsx`. Filters: `--max-lines N`, `--grep RE` (added and removed lines only),
+  `--changed-only`, and `--unviewed`. For a pattern scan these filters can't express, such as
+  import-only diffs or a rename normalized away, write a one-off script or run `rg` over the
+  snapshot's `files/` directory.
+- **`mark.py <pr> <paths…>`**, with `--unmark` to reverse and `--from-file` for long lists. It
+  checks every path against the live PR before sending anything, then confirms the result on
+  GitHub and records the agent's marks.
+- **`state.py <pr>`** — live viewed state. On follow-up turns:
+  - When the PR was updated, rerun `fetch.py`, then `state.py --since-last` lists files whose diff
+    changed (GitHub dismisses their viewed mark), new files, and removed files. Add `--interdiff`
+    to see how each changed diff moved.
+  - When the reviewer marked files by hand and asks to extrapolate, `state.py --mine` lists files
+    viewed on GitHub that the agent never marked. Those are the seed examples.
+- **`anchor.py`** — a `#diff-<sha>` anchor to its path, or a path to a Files-tab link for the
+  report.
