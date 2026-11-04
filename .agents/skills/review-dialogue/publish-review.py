@@ -560,6 +560,7 @@ def insert_header_metadata(
     pr_number: int,
     new_posted_bullets: list[str],
     transcript: tuple[str, str] | None,
+    skill_version: str | None = None,
 ) -> list[str]:
     first_section_idx = next(
         (i for i, l in enumerate(lines) if l.startswith("## ") or re.match(r"^---+\s*$", l)),
@@ -579,6 +580,13 @@ def insert_header_metadata(
             while insert_at > 0 and not header_lines[insert_at - 1].strip():
                 insert_at -= 1
             header_lines.insert(insert_at, transcript_line)
+
+    if skill_version is not None and "Skill version:" not in header_text:
+        version_line = f"- Skill version: `{skill_version}`"
+        insert_at = len(header_lines)
+        while insert_at > 0 and not header_lines[insert_at - 1].strip():
+            insert_at -= 1
+        header_lines.insert(insert_at, version_line)
 
     if new_posted_bullets:
         posted_idx = next(
@@ -876,6 +884,21 @@ def find_latest_transcript(workbench_path: Path | None = None) -> tuple[str, str
     return None
 
 
+def find_skill_version() -> str | None:
+    skill_dir = Path(__file__).resolve().parent
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(skill_dir), "log", "-1", "--format=%h", "--", "SKILL.md"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        sha = proc.stdout.strip()
+        return sha or None
+    except OSError:
+        return None
+
+
 def step_archive(workbench_path: Path, explicit_transcript: str | None = None) -> Path:
     workbench = parse_workbench(workbench_path)
     if explicit_transcript:
@@ -884,11 +907,13 @@ def step_archive(workbench_path: Path, explicit_transcript: str | None = None) -
     else:
         transcript = find_latest_transcript(workbench_path)
 
+    skill_version = find_skill_version()
     updated_lines = insert_header_metadata(
         lines=workbench.lines,
         pr_number=workbench.pr_number,
         new_posted_bullets=[],
         transcript=transcript,
+        skill_version=skill_version,
     )
     updated_content = "\n".join(updated_lines) + "\n"
 
