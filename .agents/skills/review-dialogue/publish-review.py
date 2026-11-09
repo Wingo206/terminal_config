@@ -1,11 +1,20 @@
 #!/usr/bin/env python3
-"""Composable CLI for validating, posting, and archiving a review-dialogue workbench.
+"""Composable CLI for the lifecycle of a review-dialogue workbench in ~/pr-reviews/.
 
-Steps (can be run individually or all together via `publish`):
-    python3 ~/.cursor/skills/review-dialogue/publish-review.py check <workbench.md>
-    python3 ~/.cursor/skills/review-dialogue/publish-review.py post <workbench.md>
-    python3 ~/.cursor/skills/review-dialogue/publish-review.py archive <workbench.md> [--transcript <path>]
-    python3 ~/.cursor/skills/review-dialogue/publish-review.py [publish] <workbench.md> [--transcript <path>]
+A workbench lives at ~/pr-reviews/pr-<number>-review.md from the first turn (`init`, status: active)
+through completion (`post` / `done`, status: done). Its YAML frontmatter (pr, repo, title, author,
+date, status, posted_comments, chat_id, skill_version) is kept in sync with the header block.
+
+Steps (can be run individually; `publish` runs check -> post -> done):
+    python3 ~/.cursor/skills/review-dialogue/publish-review.py init <pr-number-or-url> [--transcript <path>]
+    python3 ~/.cursor/skills/review-dialogue/publish-review.py check <workbench>
+    python3 ~/.cursor/skills/review-dialogue/publish-review.py post <workbench>
+    python3 ~/.cursor/skills/review-dialogue/publish-review.py done <workbench> [--transcript <path>]
+    python3 ~/.cursor/skills/review-dialogue/publish-review.py [publish] <workbench> [--transcript <path>]
+
+<workbench> is a path, or `pr-2920-review.md` / `2920` / a PR URL, which resolve to
+~/pr-reviews/pr-<number>-review.md when no such file exists in the current directory.
+`archive` is an alias for `done`.
 """
 
 from __future__ import annotations
@@ -16,12 +25,34 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import date
+
+REVIEWS_DIR = Path.home() / "pr-reviews"
+DEFAULT_OWNER, DEFAULT_REPO = "mach9robotics", "bagel"
+FRONTMATTER_KEYS = (
+    "pr",
+    "repo",
+    "title",
+    "author",
+    "date",
+    "status",
+    "posted_comments",
+    "chat_id",
+    "skill_version",
+)
 
 PR_URL_RE = re.compile(r"https://github\.com/([^/\s]+)/([^/\s#)]+)/pull/(\d+)")
 PR_FILENAME_RE = re.compile(r"pr-(\d+)")
+PR_REF_RE = re.compile(r"(?:([\w.-]+)/([\w.-]+))?#?(\d+)")
+UUID_RE = re.compile(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", re.IGNORECASE)
+PLAIN_SCALAR_RE = re.compile(r"[A-Za-z][\w./-]*|\d{4}-\d{2}-\d{2}|\d+")
+POSTED_MARKER_RE = re.compile(r"^(?:-\s*)?\*\*Posted\s+(?:comment|review summary)\b", re.IGNORECASE)
+POSTED_LABEL_RE = re.compile(r"^(\s*)([-*]\s+)?(?:\*\*)?(?:Posted|Published)\b[^:]*:", re.IGNORECASE)
+GITHUB_LINK_RE = re.compile(r"https://github\.com/[^\s)\]>]+")
 
 HEADING_RE = re.compile(r"^(#{2,3})\s+(.+?)\s*$")
 TARGET_HEADER_RE = re.compile(r"^(?:-\s*)?\*\*Targets?:?\*\*\s*(.*)$", re.IGNORECASE)
@@ -82,8 +113,10 @@ class ParsedWorkbench:
     repo: str
     pr_number: int
     lines: list[str]
+    """Every line of the file, frontmatter included, so marker indices address the file directly."""
     summary: DraftSummary | None
     comments: list[DraftComment]
+    frontmatter: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -176,21 +209,144 @@ def clean_section_title(raw_title: str) -> str:
     return re.sub(r"^(?:Round\s+\d+:\s*|[A-Z]?\d+\.\s*)", "", raw_title).strip()
 
 
+def frontmatter_end(lines: list[str]) -> int:
+    """Index of the first line after a leading `---` YAML block, or 0 when there is none."""
+    if not lines or lines[0].strip() != "---":
+        return 0
+    for index in range(1, len(lines)):
+        if lines[index].strip() == "---":
+            return index + 1
+    return 0
+
+
+def read_frontmatter(lines: list[str]) -> dict[str, str]:
+    fields: dict[str, str] = {}
+    for line in lines[1 : max(1, frontmatter_end(lines) - 1)]:
+        key, sep, value = line.partition(":")
+        if sep and key.strip() and not key[:1].isspace():
+            fields[key.strip()] = parse_scalar(value.strip())
+    return fields
+
+
+def parse_scalar(value: str) -> str:
+    if len(value) >= 2 and value[0] == value[-1] == '"':
+        try:
+            return str(json.loads(value))
+        except ValueError:
+            return value[1:-1]
+    if len(value) >= 2 and value[0] == value[-1] == "'":
+        return value[1:-1].replace("''", "'")
+    return value.partition(" #")[0].strip()
+
+
+def format_scalar(value: object) -> str:
+    text = str(value)
+    return text if PLAIN_SCALAR_RE.fullmatch(text) or UUID_RE.fullmatch(text) else json.dumps(text, ensure_ascii=False)
+
+
+def upsert_frontmatter(
+    lines: list[str],
+    updates: dict[str, object | None],
+    keep_existing: frozenset[str] = frozenset(),
+) -> list[str]:
+    """`lines` with frontmatter fields set from `updates`, creating the block when missing.
+
+    `None` values are skipped, keys in `keep_existing` are only filled in when absent, and every
+    other existing field keeps its line and position.
+    """
+    end = frontmatter_end(lines)
+    block = list(lines[1 : end - 1]) if end else []
+    existing = read_frontmatter(lines)
+    ordered = [key for key in FRONTMATTER_KEYS if key in updates] + [k for k in updates if k not in FRONTMATTER_KEYS]
+    for key in ordered:
+        value = updates[key]
+        if value is None or value == "" or (key in keep_existing and existing.get(key)):
+            continue
+        rendered = f"{key}: {format_scalar(value)}"
+        position = next((i for i, line in enumerate(block) if line.partition(":")[0].strip() == key), None)
+        if position is None:
+            block.append(rendered)
+        else:
+            block[position] = rendered
+    return ["---", *block, "---", *lines[end:]]
+
+
+def count_posted_comments(lines: list[str]) -> int:
+    """Posted comments recorded in a workbench.
+
+    The larger of the in-place `**Posted comment ...**` / `**Posted review summary ...**` markers and
+    the GitHub links listed under `Posted comments:` / `Published comments:` / `Posted to PR #N:`
+    labels, since older workbenches only kept the header list.
+    """
+    markers = sum(1 for line in lines if POSTED_MARKER_RE.match(line.strip()))
+    listed = 0
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        index += 1
+        label = POSTED_LABEL_RE.match(line)
+        if not label or POSTED_MARKER_RE.match(line.strip()):
+            continue
+        base_indent, is_bulleted = len(label.group(1)), bool(label.group(2))
+        if not is_bulleted and index < len(lines) and not lines[index].strip():
+            index += 1
+        while index < len(lines) and lines[index].strip():
+            item = lines[index]
+            indent = len(item) - len(item.lstrip())
+            if indent <= base_indent and (is_bulleted or not item.lstrip().startswith(("- ", "* "))):
+                break
+            listed += len(GITHUB_LINK_RE.findall(item))
+            index += 1
+    return max(markers, listed)
+
+
+def header_bounds(lines: list[str]) -> tuple[int, int]:
+    """[start, end) of the header block: after the frontmatter, up to the first `## ` or `---`."""
+    start = frontmatter_end(lines)
+    end = next(
+        (i for i in range(start, len(lines)) if lines[i].startswith("## ") or re.match(r"^---+\s*$", lines[i])),
+        len(lines),
+    )
+    return start, end
+
+
+def is_in_reviews_dir(path: Path) -> bool:
+    return REVIEWS_DIR.exists() and path.resolve().parent == REVIEWS_DIR.resolve()
+
+
+def resolve_workbench_path(raw: str) -> Path:
+    """`raw` if it exists, else ~/pr-reviews/pr-<number>-review.md for a number, PR URL, or filename."""
+    candidate = Path(raw).expanduser()
+    if candidate.exists():
+        return candidate.absolute()
+    url = PR_URL_RE.search(raw)
+    ref = re.fullmatch(r"#?(\d+)", raw.strip())
+    number = url.group(3) if url else ref.group(1) if ref else None
+    if number:
+        return REVIEWS_DIR / f"pr-{number}-review.md"
+    return REVIEWS_DIR / candidate.name
+
+
 def parse_workbench(path: Path) -> ParsedWorkbench:
     text = path.read_text(encoding="utf-8")
     lines = text.splitlines()
+    fields = read_frontmatter(lines)
+    body_start = frontmatter_end(lines)
 
-    url_match = PR_URL_RE.search(text)
-    if url_match:
+    url_match = PR_URL_RE.search("\n".join(lines[body_start:]))
+    fn_match = PR_FILENAME_RE.search(path.name)
+    if fields.get("pr", "").isdigit():
+        owner, _, repo = (fields.get("repo") or f"{DEFAULT_OWNER}/{DEFAULT_REPO}").partition("/")
+        pr_number = int(fields["pr"])
+    elif url_match:
         owner, repo, pr_num_str = url_match.group(1), url_match.group(2), url_match.group(3)
         pr_number = int(pr_num_str)
+    elif fn_match:
+        owner, repo, pr_number = DEFAULT_OWNER, DEFAULT_REPO, int(fn_match.group(1))
     else:
-        fn_match = PR_FILENAME_RE.search(path.name)
-        if not fn_match:
-            raise ValueError(
-                f"Could not find a GitHub PR URL in {path} or a PR number in filename {path.name}."
-            )
-        owner, repo, pr_number = "mach9robotics", "bagel", int(fn_match.group(1))
+        raise ValueError(
+            f"Could not find a PR in the frontmatter of {path}, a GitHub PR URL, or a PR number in {path.name}."
+        )
 
     current_heading = "General"
     current_targets: list[TargetSpec] = []
@@ -199,7 +355,7 @@ def parse_workbench(path: Path) -> ParsedWorkbench:
     summary: DraftSummary | None = None
     comments: list[DraftComment] = []
 
-    index = 0
+    index = body_start
     while index < len(lines):
         line = lines[index]
 
@@ -302,6 +458,7 @@ def parse_workbench(path: Path) -> ParsedWorkbench:
         lines=lines,
         summary=summary,
         comments=comments,
+        frontmatter=fields,
     )
 
 
@@ -562,19 +719,22 @@ def insert_header_metadata(
     transcript: tuple[str, str] | None,
     skill_version: str | None = None,
 ) -> list[str]:
-    first_section_idx = next(
-        (i for i, l in enumerate(lines) if l.startswith("## ") or re.match(r"^---+\s*$", l)),
-        len(lines),
-    )
-    header_lines = list(lines[:first_section_idx])
+    """Add transcript, skill version, and posted-comment bullets to the header block.
+
+    Lines already there are kept as they are, including transcript lines that the vault linker
+    upgraded to `[[chats/...]]` wikilinks (they still carry the chat_id, so no duplicate is added).
+    """
+    header_start, first_section_idx = header_bounds(lines)
+    prefix_lines = list(lines[:header_start])
+    header_lines = list(lines[header_start:first_section_idx])
     rest_lines = list(lines[first_section_idx:])
 
     header_text = "\n".join(header_lines)
     if transcript is not None:
         t_uuid, t_path = transcript
         if t_uuid not in header_text:
-            transcript_line = (
-                f"- Agent transcript: [PR {pr_number} review dialogue]({t_uuid}) (`{t_path}`)"
+            transcript_line = f"- Agent transcript: [PR {pr_number} review dialogue]({t_uuid})" + (
+                f" (`{t_path}`)" if t_path else ""
             )
             insert_at = len(header_lines)
             while insert_at > 0 and not header_lines[insert_at - 1].strip():
@@ -618,7 +778,7 @@ def insert_header_metadata(
     if header_lines and header_lines[-1].strip():
         header_lines.append("")
 
-    return header_lines + rest_lines
+    return prefix_lines + header_lines + rest_lines
 
 
 def save_posted_progress(
@@ -677,12 +837,13 @@ def step_check(workbench_path: Path) -> tuple[ParsedWorkbench, PrContext]:
 def step_post(
     workbench_path: Path,
     prechecked: tuple[ParsedWorkbench, PrContext] | None = None,
-) -> None:
+) -> bool:
+    """Publish drafts to GitHub; returns whether anything was posted."""
     workbench, ctx = prechecked if prechecked is not None else step_check(workbench_path)
 
     if workbench.summary is None and not workbench.comments and ctx.pending_review is None:
         print("Nothing to post; skipping GitHub mutation.")
-        return
+        return False
 
     extra_pending: list[tuple[str, str]] = []
 
@@ -766,7 +927,7 @@ def step_post(
         print(f"\nPublished pending review: {review_url}")
         for c in workbench.comments:
             print(f"  - {c.section_title}: {c.posted_url}")
-        return
+        return True
 
     mutation = """
     mutation($input: AddPullRequestReviewInput!) {
@@ -824,6 +985,7 @@ def step_post(
     print(f"\nPublished review: {review_url}")
     for c in workbench.comments:
         print(f"  - {c.section_title}: {c.posted_url}")
+    return True
 
 
 def find_latest_transcript(workbench_path: Path | None = None) -> tuple[str, str] | None:
@@ -851,7 +1013,8 @@ def find_latest_transcript(workbench_path: Path | None = None) -> tuple[str, str
 
     if projects_dir.exists():
         roots = [Path.cwd()]
-        if workbench_path is not None:
+        # ~/pr-reviews is not a code workspace, so only a workbench still inside a repo clone scopes the search.
+        if workbench_path is not None and not is_in_reviews_dir(workbench_path):
             roots.insert(0, workbench_path.parent)
         for root in roots:
             for directory in (root.resolve(), *root.resolve().parents):
@@ -899,78 +1062,233 @@ def find_skill_version() -> str | None:
         return None
 
 
-def step_archive(workbench_path: Path, explicit_transcript: str | None = None) -> Path:
-    workbench = parse_workbench(workbench_path)
-    if explicit_transcript:
-        t_path = Path(explicit_transcript).expanduser()
-        transcript = (t_path.stem, str(t_path))
-    else:
-        transcript = find_latest_transcript(workbench_path)
+def resolve_transcript(explicit: str | None, workbench_path: Path | None) -> tuple[str, str] | None:
+    """(chat_id, jsonl path) from `--transcript` (a path or a UUID), else the active session's transcript."""
+    if not explicit:
+        return find_latest_transcript(workbench_path)
+    value = explicit.strip()
+    if UUID_RE.fullmatch(value):
+        projects_dir = Path.home() / ".cursor" / "projects"
+        match = next(projects_dir.glob(f"*/agent-transcripts/{value}/{value}.jsonl"), None)
+        return value, str(match) if match else ""
+    t_path = Path(value).expanduser()
+    return t_path.stem, str(t_path)
 
-    skill_version = find_skill_version()
-    updated_lines = insert_header_metadata(
+
+def header_chat_id(lines: list[str]) -> str | None:
+    """The first chat_id on a header transcript line, for workbenches that predate frontmatter."""
+    start, end = header_bounds(lines)
+    for index in range(start, end):
+        if "transcript" not in lines[index].lower():
+            continue
+        block = [lines[index]]
+        for line in lines[index + 1 : end]:
+            if not line[:1].isspace():
+                break
+            block.append(line)
+        match = UUID_RE.search("\n".join(block))
+        if match:
+            return match.group(0).lower()
+    return None
+
+
+def stamp_workbench(
+    workbench_path: Path,
+    transcript: tuple[str, str] | None,
+    skill_version: str | None,
+) -> list[str]:
+    """Mark the workbench done in place: header transcript and skill lines, then the frontmatter."""
+    workbench = parse_workbench(workbench_path)
+    lines = insert_header_metadata(
         lines=workbench.lines,
         pr_number=workbench.pr_number,
         new_posted_bullets=[],
         transcript=transcript,
         skill_version=skill_version,
     )
-    updated_content = "\n".join(updated_lines) + "\n"
-
-    archive_dir = Path.home() / "pr-reviews"
-    archive_dir.mkdir(parents=True, exist_ok=True)
-    dest_path = (
-        workbench_path
-        if workbench_path.parent == archive_dir
-        else archive_dir / workbench_path.name
+    lines = upsert_frontmatter(
+        lines,
+        {
+            "pr": workbench.pr_number,
+            "repo": f"{workbench.owner}/{workbench.repo}",
+            "date": date.today().isoformat(),
+            "status": "done",
+            "posted_comments": count_posted_comments(lines),
+            "chat_id": header_chat_id(workbench.lines) or (transcript[0] if transcript else None),
+            "skill_version": skill_version,
+        },
+        keep_existing=frozenset({"pr", "repo", "date", "chat_id", "skill_version"}),
     )
-    dest_path.write_text(updated_content, encoding="utf-8")
-    if dest_path != workbench_path:
-        workbench_path.unlink()
+    workbench_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return lines
 
-    print(f"Archived workbench: {dest_path}")
+
+def step_done(workbench_path: Path, explicit_transcript: str | None = None) -> Path:
+    dest_path = workbench_path
+    if not is_in_reviews_dir(workbench_path):
+        dest_path = REVIEWS_DIR / workbench_path.name
+        if dest_path.exists():
+            raise FileExistsError(f"{dest_path} already exists; merge {workbench_path} into it by hand.")
+
+    transcript = resolve_transcript(explicit_transcript, workbench_path)
+    lines = stamp_workbench(workbench_path, transcript, find_skill_version())
+    if dest_path != workbench_path:
+        REVIEWS_DIR.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(workbench_path), dest_path)
+
+    fields = read_frontmatter(lines)
+    print(f"Marked done: {dest_path}")
+    print(f"  chat_id: {fields.get('chat_id') or '(none)'} · posted_comments: {fields.get('posted_comments')}")
     if transcript:
-        print(f"  Transcript linked: {transcript[0]} ({transcript[1]})")
+        print(f"  Active transcript: {transcript[0]} ({transcript[1] or 'path unknown'})")
     return dest_path
 
 
+def resolve_init_target(target: str) -> tuple[Path, str, str, int]:
+    """(workbench path, owner, repo, PR number) for an existing workbench, PR URL, `owner/repo#N`, or number."""
+    candidate = Path(target).expanduser()
+    if candidate.is_file():
+        workbench = parse_workbench(candidate)
+        return candidate.absolute(), workbench.owner, workbench.repo, workbench.pr_number
+    url = PR_URL_RE.search(target)
+    ref = PR_REF_RE.fullmatch(target.strip())
+    name = PR_FILENAME_RE.search(candidate.name)
+    if url:
+        owner, repo, number = url.group(1), url.group(2), int(url.group(3))
+    elif ref:
+        owner, repo, number = ref.group(1) or DEFAULT_OWNER, ref.group(2) or DEFAULT_REPO, int(ref.group(3))
+    elif name:
+        owner, repo, number = DEFAULT_OWNER, DEFAULT_REPO, int(name.group(1))
+    else:
+        raise ValueError(f"Expected a PR number, PR URL, `owner/repo#N`, or pr-<number>-review.md; got {target!r}.")
+    path = resolve_workbench_path(f"pr-{number}-review.md" if url or ref else target)
+    return path, owner, repo, number
+
+
+def pr_header_lines(pr: dict, owner: str, repo: str) -> list[str]:
+    lines = [f"- **PR:** [{owner}/{repo}#{pr['number']} — {pr['title']}]({pr['url']})"]
+    login = (pr.get("author") or {}).get("login")
+    if login:
+        lines.append(f"- **Author:** `@{login}`")
+    if pr.get("headRefName"):
+        lines.append(f"- **Branch:** `{pr['headRefName']}` → `{pr.get('baseRefName') or '?'}`")
+    return lines
+
+
+def ensure_pr_header(lines: list[str], pr: dict, owner: str, repo: str) -> list[str]:
+    """A new workbench's title and PR block; an existing one only gains the PR lines if it lacks a link."""
+    if not lines:
+        return [f"# PR #{pr['number']} Review Workbench", "", *pr_header_lines(pr, owner, repo), ""]
+    start, end = header_bounds(lines)
+    if f"/pull/{pr['number']}" in "\n".join(lines[start:end]):
+        return lines
+    title_index = next((i for i in range(start, end) if lines[i].startswith("# ")), None)
+    at = title_index + 1 if title_index is not None else start
+    while at < end and not lines[at].strip():
+        at += 1
+    block = pr_header_lines(pr, owner, repo)
+    if at < len(lines) and lines[at].strip():
+        block.append("")
+    if title_index is not None and at == title_index + 1:
+        block.insert(0, "")
+    return lines[:at] + block + lines[at:]
+
+
+def step_init(target: str, explicit_transcript: str | None = None) -> Path:
+    workbench_path, owner, repo, number = resolve_init_target(target)
+    pr = run_gh_json(
+        [
+            "pr",
+            "view",
+            str(number),
+            "--repo",
+            f"{owner}/{repo}",
+            "--json",
+            "number,title,author,url,headRefName,baseRefName",
+        ]
+    )
+    transcript = resolve_transcript(explicit_transcript, workbench_path)
+    skill_version = find_skill_version()
+    is_new = not workbench_path.exists()
+    lines = [] if is_new else workbench_path.read_text(encoding="utf-8").splitlines()
+    lines = ensure_pr_header(lines, pr, owner, repo)
+    lines = insert_header_metadata(
+        lines=lines,
+        pr_number=number,
+        new_posted_bullets=[],
+        transcript=transcript,
+        skill_version=skill_version,
+    )
+    lines = upsert_frontmatter(
+        lines,
+        {
+            "pr": number,
+            "repo": f"{owner}/{repo}",
+            "title": pr.get("title"),
+            "author": (pr.get("author") or {}).get("login"),
+            "date": date.today().isoformat(),
+            "status": "active",
+            "posted_comments": count_posted_comments(lines),
+            "chat_id": header_chat_id(lines) or (transcript[0] if transcript else None),
+            "skill_version": skill_version,
+        },
+        keep_existing=frozenset({"date", "chat_id", "skill_version"}),
+    )
+    workbench_path.parent.mkdir(parents=True, exist_ok=True)
+    workbench_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(f"{'Created' if is_new else 'Updated'} workbench: {workbench_path}")
+    print(f"  PR #{number} — {pr.get('title')} ({owner}/{repo})")
+    if transcript:
+        print(f"  Transcript: {transcript[0]}")
+    return workbench_path
+
+
 def parse_cli_args(argv: list[str]) -> argparse.Namespace:
-    commands = {"check", "post", "archive", "publish"}
+    commands = {"init", "check", "post", "done", "archive", "publish"}
     if argv and argv[0] not in commands and not argv[0].startswith("-"):
         argv = ["publish", *argv]
 
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     subparsers = parser.add_subparsers(dest="command", required=True)
+    workbench_help = "pr-<number>-review.md path, filename, PR number, or PR URL"
+
+    p_init = subparsers.add_parser(
+        "init",
+        help="Create or refresh ~/pr-reviews/pr-<number>-review.md with frontmatter (status: active) and header",
+    )
+    p_init.add_argument("target", help="PR number, PR URL, owner/repo#N, or an existing workbench path")
+    p_init.add_argument("--transcript", type=str, default=None, help="Explicit transcript path or UUID")
 
     p_check = subparsers.add_parser(
         "check", help="Validate targets and diff hunks against GitHub (read-only)"
     )
-    p_check.add_argument("workbench", type=Path, help="Path to pr-<number>-review.md")
+    p_check.add_argument("workbench", help=workbench_help)
 
     p_post = subparsers.add_parser(
         "post",
-        help="Post draft comments/summary to GitHub and stamp links into the workbench in place",
+        help="Post draft comments/summary to GitHub, stamp links in place, and mark the frontmatter done",
     )
-    p_post.add_argument("workbench", type=Path, help="Path to pr-<number>-review.md")
+    p_post.add_argument("workbench", help=workbench_help)
 
-    p_archive = subparsers.add_parser(
-        "archive",
-        help="Stamp the active agent transcript link and move the workbench to ~/pr-reviews/",
+    p_done = subparsers.add_parser(
+        "done",
+        aliases=["archive"],
+        help="Stamp status: done, posted_comments, chat_id, and skill_version; move into ~/pr-reviews/ if elsewhere",
     )
-    p_archive.add_argument("workbench", type=Path, help="Path to pr-<number>-review.md")
-    p_archive.add_argument(
+    p_done.add_argument("workbench", help=workbench_help)
+    p_done.add_argument(
         "--transcript", type=str, default=None, help="Explicit transcript path or UUID"
     )
 
     p_publish = subparsers.add_parser(
-        "publish", help="Run check -> post -> archive in sequence (default)"
+        "publish", help="Run check -> post -> done in sequence (default)"
     )
-    p_publish.add_argument("workbench", type=Path, help="Path to pr-<number>-review.md")
+    p_publish.add_argument("workbench", help=workbench_help)
     p_publish.add_argument(
         "--dry-run", action="store_true", help="Alias for `check` (validate only)"
     )
     p_publish.add_argument(
-        "--no-archive", action="store_true", help="Run `check` and `post` without `archive`"
+        "--no-archive", action="store_true", help="Run `check` and `post` without `done`"
     )
     p_publish.add_argument(
         "--transcript", type=str, default=None, help="Explicit transcript path or UUID"
@@ -981,31 +1299,42 @@ def parse_cli_args(argv: list[str]) -> argparse.Namespace:
 
 def main() -> int:
     args = parse_cli_args(sys.argv[1:])
-    workbench_path = args.workbench.expanduser().resolve()
-    if not workbench_path.exists():
-        print(f"Error: workbench file not found: {workbench_path}", file=sys.stderr)
-        return 1
-
-    if args.command == "check":
-        step_check(workbench_path)
-        return 0
-
-    if args.command == "post":
-        step_post(workbench_path)
-        return 0
-
-    if args.command == "archive":
-        step_archive(workbench_path, explicit_transcript=args.transcript)
-        return 0
-
-    if args.command == "publish":
-        prechecked = step_check(workbench_path)
-        if args.dry_run:
+    try:
+        if args.command == "init":
+            step_init(args.target, explicit_transcript=args.transcript)
             return 0
-        step_post(workbench_path, prechecked=prechecked)
-        if not args.no_archive:
-            step_archive(workbench_path, explicit_transcript=args.transcript)
-        return 0
+
+        workbench_path = resolve_workbench_path(args.workbench)
+        if not workbench_path.exists():
+            print(f"Error: workbench file not found: {workbench_path}", file=sys.stderr)
+            return 1
+
+        if args.command == "check":
+            step_check(workbench_path)
+            return 0
+
+        if args.command == "post":
+            if step_post(workbench_path):
+                stamp_workbench(workbench_path, find_latest_transcript(workbench_path), find_skill_version())
+            return 0
+
+        if args.command in ("done", "archive"):
+            step_done(workbench_path, explicit_transcript=args.transcript)
+            return 0
+
+        if args.command == "publish":
+            prechecked = step_check(workbench_path)
+            if args.dry_run:
+                return 0
+            posted = step_post(workbench_path, prechecked=prechecked)
+            if not args.no_archive:
+                step_done(workbench_path, explicit_transcript=args.transcript)
+            elif posted:
+                stamp_workbench(workbench_path, resolve_transcript(args.transcript, workbench_path), find_skill_version())
+            return 0
+    except (ValueError, RuntimeError, FileExistsError) as error:
+        print(f"Error: {error}", file=sys.stderr)
+        return 1
 
     return 1
 

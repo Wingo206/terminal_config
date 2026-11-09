@@ -20,9 +20,12 @@ doing in the system, why the author shaped it this way, and whether later PRs in
 along with which responsibility boundary, invariant, state lifetime, or codebase convention is at
 stake.
 
-The goal of the investigation is orientation and intuition. Paint a concise conceptual picture
-rather than an exhaustive code trace, commit log, or step-by-step reasoning chain. Understanding
-checks and follow-up questions can then zoom into technical specifics where needed.
+The goal of the investigation is orientation and intuition. Build a concise conceptual picture of
+the coherent system shape: which responsibilities belong together, where their boundary should
+sit, and which invariants that boundary must preserve. Use the implementation, history, and
+codebase precedents to test and refine that picture, keeping incidental friction from the current
+composition subordinate to the architectural question. Understanding checks and follow-up
+questions can then zoom into technical specifics where needed.
 
 ### Investigation rules
 
@@ -56,47 +59,59 @@ All explanations, chat replies, and drafted comments follow these rules:
 
 ## The review workbench organizes the parallel threads
 
-A local markdown file, `pr-<number>-review.md`, serves as the shared workbench for the active
-review, and completed reviews live in `~/pr-reviews/pr-<number>-review.md` with stack links,
-follow-up Linear issues, and posted comment links in the top header block.
+A markdown file in `~/pr-reviews/pr-<number>-review.md` serves as the shared workbench for the
+review from the first turn through completion, with YAML frontmatter (`pr`, `repo`, `title`,
+`author`, `date`, `status`, `posted_comments`, `chat_id`, `skill_version`) and a top header block
+holding stack links, follow-up Linear issues, posted comment links, and the transcript link.
 
-Keeping the detailed breakdown and drafted comments in the workbench makes it easy to read and
-track multiple parallel threads in one place, while chat stays focused on working through open
-questions and tradeoffs.
+Keeping the workbench in `~/pr-reviews/` from the start prevents untracked review files from sitting
+in repo clones when switching tasks, and keeps the detailed breakdown and drafted comments in one
+durable place while chat stays focused on working through open questions and tradeoffs.
 
 ### Working with the workbench
 
-- Organize `pr-<number>-review.md` vertically by discussion thread, or by review round when
-  re-opening an archived review from `~/pr-reviews/` after author updates or pulling forward
-  deferred notes from earlier PRs in the stack.
+- Create and update `~/pr-reviews/pr-<number>-review.md` directly in place from the first turn
+  (running `python3 ~/.cursor/skills/review-dialogue/publish-review.py init <pr>` to scaffold the
+  frontmatter and header with `status: active`, or re-opening an existing `~/pr-reviews/pr-<number>-review.md`
+  when revisiting a PR after author updates).
+- Organize `~/pr-reviews/pr-<number>-review.md` vertically by discussion thread, or by review round
+  when revisiting a PR after author updates or pulling forward deferred notes from earlier PRs in
+  the stack.
+- Treat the initial threads as working hypotheses rather than a fixed outline. Preserve distinct
+  observations so the reviewer can traverse them independently, then consolidate their shared
+  framing and merge or narrow threads when the dialogue reveals that they are symptoms of the same
+  architectural force.
 - Include the GitHub PR link near the top of the file and anchor each thread with a `**Target:**`
   listing the repo-root file path and diff line or line range, such as
   `` `mach9-cloud/path/to/file.ts:23` `` or `` `mach9-cloud/path/to/file.ts:15-24` ``.
-- On the first turn, write the per-thread explanations into `pr-<number>-review.md` and briefly
-  list the threads in chat so the reviewer can choose where to start.
+- On the first turn, write the per-thread explanations into `~/pr-reviews/pr-<number>-review.md`
+  and briefly list the threads in chat so the reviewer can choose where to start.
 - Use chat to work through open questions and tradeoffs. Once a thread's direction is clear, update
-  that thread's section in `pr-<number>-review.md` in place and briefly confirm the update in chat
-  so the reviewer can read the draft in the workbench:
+  that thread's section in `~/pr-reviews/pr-<number>-review.md` in place and briefly confirm the
+  update in chat so the reviewer can read the draft in the workbench:
   - `**Draft comment:**` or ``**Draft comment (`mach9-cloud/path/to/file.ts:23`):**`` when a thread
     lists multiple target files and the comment anchors to a specific one.
   - `**Draft summary:**` in an overview section when the reviewer wants a top-level review body.
   - `**Resolution:**` when the thread is deferred, tracked only in Linear, or resolved without a PR
     comment.
 
-### Publishing and archiving
+### Publishing and finishing
 
-- Keep publishing separate until the reviewer explicitly asks to post comments to GitHub or create
-  Linear issues.
+- Keep publishing separate until the reviewer explicitly asks to post comments to GitHub, create
+  Linear issues, or mark the review done.
 - Create any agreed follow-up Linear issues first so their links can be included in the workbench
   and draft comments, then run `python3 ~/.cursor/skills/review-dialogue/publish-review.py`:
-  - `check pr-<number>-review.md`: validate `**Target:**` paths and diff hunk lines against GitHub
-    without mutating anything.
-  - `post pr-<number>-review.md`: publish remaining `**Draft summary:**` and `**Draft comment:**`
-    blocks to GitHub and convert them in place to `**Posted comment ([link](...)):**` so re-runs
-    are idempotent.
-  - `archive pr-<number>-review.md`: stamp the active Cursor transcript link into the header and
-    move the workbench to `~/pr-reviews/`.
-  - `publish pr-<number>-review.md`: run `check`, `post`, and `archive` in sequence.
+  - `init <pr-number-or-url>`: create or refresh `~/pr-reviews/pr-<number>-review.md` with YAML
+    frontmatter (`status: active`), PR metadata from GitHub, active `chat_id`, and `skill_version`.
+  - `check ~/pr-reviews/pr-<number>-review.md`: validate `**Target:**` paths and diff hunk lines
+    against GitHub without mutating anything.
+  - `post ~/pr-reviews/pr-<number>-review.md`: publish remaining `**Draft summary:**` and
+    `**Draft comment:**` blocks to GitHub, convert them in place to `**Posted comment ([link](...)):**`,
+    and update frontmatter (`status: done`, `posted_comments`, `chat_id`, `skill_version`).
+  - `done ~/pr-reviews/pr-<number>-review.md` (or `archive`): stamp `status: done`, the active
+    Cursor transcript `chat_id`, and `skill_version` in place (moving the file into `~/pr-reviews/`
+    if it was started elsewhere), for reviews that finish without posting comments.
+  - `publish ~/pr-reviews/pr-<number>-review.md`: run `check`, `post`, and `done` in sequence.
 
 ## Alignment determines the disposition of each thread
 
