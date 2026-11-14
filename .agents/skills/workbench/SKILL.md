@@ -31,19 +31,21 @@ helpful, followed by one section per thread:
 - **Target anchor:** Start each thread with `**Target:**` listing the exact repo-root file paths and
   line ranges, such as `` `mach9-cloud/path/to/file.ts:15-24` ``, or commit and PR references when a
   thread spans a broader change.
-- **Natural prose:** Because `**Target:**` already carries the code coordinates, write the thread's
-  conceptual picture and any drafted outputs in plain, flowing prose as if talking directly to a
-  teammate. Refer to collaborators by their role in plain English and use backticked identifiers
-  only when a specific symbol or type name is itself the point of discussion.
+- **Natural prose:** Follow
+  [Explanations stay at the level of roles and invariants](../design-dialogue/SKILL.md#explanations-stay-at-the-level-of-roles-and-invariants)
+  across thread explanations, chat replies, and drafted outputs. Because `**Target:**` already
+  carries the code coordinates, state collective findings as a shared property in plain English and
+  avoid parenthetical asides, inline code chunks, call chains, or slash-separated symbol lists
+  mid-sentence.
 - **In-place outcome:** Once a thread settles through dialogue, record its outcome at the bottom of
   that thread's section using `**Resolution:**` or a workflow-specific deliverable marker, keeping
   the concise conceptual notes above it intact for reference.
 
 ## Workbench and chat flow
 
-- **First turn:** Write the per-thread conceptual pictures directly into the workbench without
-  pre-baking final prescriptions, and give a brief list of the threads in chat so the user can
-  choose where to start.
+- **First turn:** Write the full per-thread conceptual pictures into the workbench without
+  pre-baking final prescriptions, and keep the first chat reply to a short index of the threads
+  rather than repeating the per-thread analysis in chat.
 - **Ongoing dialogue:** Use chat to work through understanding checks, open questions, and
   tradeoffs. When an idea settles or a thread is updated in the workbench, confirm the update in a
   sentence or two in chat rather than repeating or paraphrasing the workbench text.

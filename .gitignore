@@ -1,3 +1,5 @@
 /old
 .config/github-copilot
 .agents/skills/**/evidence.md
+__pycache__/
+*.py[cod]

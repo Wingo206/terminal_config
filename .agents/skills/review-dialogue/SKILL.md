@@ -50,7 +50,8 @@ Follow [Thread anatomy and prose](../workbench/SKILL.md#thread-anatomy-and-prose
   revisiting a PR after author updates or pulling forward deferred stack notes.
 - Anchor each thread with `**Target:**` using repo-root paths and diff lines such as
   `` `mach9-cloud/path/to/file.ts:15-24` ``, write the first-turn explanations into the workbench in
-  natural prose, and briefly list the threads in chat.
+  natural prose, and keep the first chat reply to a short index of the threads rather than repeating
+  the full explanations in chat.
 - Once a thread's direction settles in chat, record its outcome in place in
   `~/pr-reviews/pr-<number>-review.md` and confirm briefly in chat without repeating drafts:
   - `**Draft comment:**` or ``**Draft comment (`mach9-cloud/path/to/file.ts:23`):**`` when a thread
@@ -107,6 +108,12 @@ than narrating how the current code works:
 
 ### Drafting rules
 
+- Apply
+  [Explanations stay at the level of roles and invariants](../design-dialogue/SKILL.md#explanations-stay-at-the-level-of-roles-and-invariants)
+  to every `**Draft comment:**` and `**Draft summary:**`: state collective findings in plain English,
+  name concrete identifiers only when they are the boundary under discussion or an explicit target
+  to change, and avoid parenthetical asides, inline code chunks, call chains, or mid-sentence symbol
+  lists.
 - Preserve the reviewer's voice, principles, and motivation when writing or trimming drafts,
   cutting mechanical code traces rather than the underlying principle or why it matters.
 - When the reviewer asks for an overall review summary, follow their lead on tone, priorities, and

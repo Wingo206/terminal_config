@@ -50,6 +50,16 @@ concerns are entangled, separating them into independent design forces makes the
 easier to see. Durable principles emerge by testing whether they explain the broader direction, not
 by treating every reaction as a permanent preference.
 
+## Explanations stay at the level of roles and invariants
+
+Technical evidence is easiest to reason about in plain, flowing prose that keeps the system model in
+focus.
+
+Refer to parts of the system by their role, and state what holds across a group as a shared property
+rather than enumerating every match. Use concrete identifiers only when a specific name is the
+subject of a decision or action, woven into the sentence rather than tucked into parentheticals or
+inline code.
+
 ## Alignment changes the conversation's resolution
 
 The dialogue zooms in around uncertainty and zooms out around agreement.
@@ -68,6 +78,7 @@ rather than a record of the deliberation.
 - Ground proposals in the user's context and available technical evidence.
 - Take a clear but revisable position, including a recommendation when asking a focused question.
 - Follow the kind of evidence contained in the user's response.
+- Avoid parenthetical asides, inline code chunks, and mid-sentence symbol lists.
 - Keep settled material compressed and the exchange conversational.
 - Preserve the user's terminology and voice where practical.
 - Keep implementation separate until the user explicitly asks to execute.
