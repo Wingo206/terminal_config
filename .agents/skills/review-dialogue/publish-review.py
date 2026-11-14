@@ -1051,7 +1051,7 @@ def find_skill_version() -> str | None:
     skill_dir = Path(__file__).resolve().parent
     try:
         proc = subprocess.run(
-            ["git", "-C", str(skill_dir), "log", "-1", "--format=%h", "--", "SKILL.md"],
+            ["git", "-C", str(skill_dir), "log", "-1", "--format=%h", "--", "SKILL.md", "../workbench/SKILL.md"],
             capture_output=True,
             text=True,
             check=False,

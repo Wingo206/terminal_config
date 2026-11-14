@@ -1,31 +1,23 @@
 ---
 name: review-dialogue
-description: Conducts a PR review as a design dialogue, turning initial observations and questions about a diff into a concise conceptual model, a living review document, and principled feedback in the reviewer's voice. Use only when explicitly invoked.
+description: Conducts a PR review as a design dialogue, turning initial observations and questions about a diff into a concise conceptual model, a living review workbench, and principled feedback in the reviewer's voice. Use only when explicitly invoked.
 disable-model-invocation: true
 ---
 
 # Review Dialogue
 
-Review Dialogue applies [Design Dialogue](../design-dialogue/SKILL.md) to pull request reviews.
+Review Dialogue applies [Design Dialogue](../design-dialogue/SKILL.md) and
+[Workbench](../workbench/SKILL.md) to pull request reviews.
 
 The goal of the review is to evaluate whether a change is solving the right problem at the right
-boundary, build a clear conceptual picture of how it fits the system, and turn initial
-observations and questions from reading a diff into well-scoped feedback.
+boundary, build a clear conceptual picture of how it fits the system, and turn initial observations
+and questions from reading a diff into well-scoped feedback.
 
-## Investigation paints a conceptual picture
+## Investigation and stack context
 
-Initial review notes often point to a symptom or an unfamiliar area of the code. Investigating the
-diff, commit history, surrounding subsystem, and any stacked PRs clarifies what job the piece is
-doing in the system, why the author shaped it this way, and whether later PRs in a stack change it,
-along with which responsibility boundary, invariant, state lifetime, or codebase convention is at
-stake.
-
-The goal of the investigation is orientation and intuition. Build a concise conceptual picture of
-the coherent system shape: which responsibilities belong together, where their boundary should
-sit, and which invariants that boundary must preserve. Use the implementation, history, and
-codebase precedents to test and refine that picture, keeping incidental friction from the current
-composition subordinate to the architectural question. Understanding checks and follow-up
-questions can then zoom into technical specifics where needed.
+Investigating the diff, commit history, surrounding subsystem, and any stacked PRs clarifies what
+job the piece is doing in the system, why the author shaped it this way, and whether later PRs in a
+stack change it, following [Synthesis builds a coherent system picture](../workbench/SKILL.md#synthesis-builds-a-coherent-system-picture).
 
 ### Investigation rules
 
@@ -40,55 +32,27 @@ questions can then zoom into technical specifics where needed.
   offer to create it rather than searching external notes or agent transcripts unless explicitly
   asked.
 
-## Explanations and comments read as natural prose
-
-Explanations in the workbench, replies in chat, and drafted comments are easiest to follow when
-written in plain, flowing sentences rather than code-heavy shorthand.
-
-Because each thread already anchors its target file and line, prose can refer to collaborators by
-their role in plain English and use backticked identifiers only when a specific symbol or type name
-is itself the point of discussion.
-
-### Prose rules
-
-All explanations, chat replies, and drafted comments follow these rules:
-
-- Write in natural, conversational prose as if talking directly to a teammate.
-- Avoid parenthetical asides, inline code chunks, call chains, or walls of symbol names
-  mid-sentence that break up the reading flow.
-
-## The review workbench organizes the parallel threads
+## The review workbench
 
 A markdown file in `~/pr-reviews/pr-<number>-review.md` serves as the shared workbench for the
 review from the first turn through completion, with YAML frontmatter (`pr`, `repo`, `title`,
 `author`, `date`, `status`, `posted_comments`, `chat_id`, `skill_version`) and a top header block
 holding stack links, follow-up Linear issues, posted comment links, and the transcript link.
 
-Keeping the workbench in `~/pr-reviews/` from the start prevents untracked review files from sitting
-in repo clones when switching tasks, and keeps the detailed breakdown and drafted comments in one
-durable place while chat stays focused on working through open questions and tradeoffs.
-
 ### Working with the workbench
 
-- Create and update `~/pr-reviews/pr-<number>-review.md` directly in place from the first turn
-  (running `python3 ~/.cursor/skills/review-dialogue/publish-review.py init <pr>` to scaffold the
-  frontmatter and header with `status: active`, or re-opening an existing `~/pr-reviews/pr-<number>-review.md`
-  when revisiting a PR after author updates).
-- Organize `~/pr-reviews/pr-<number>-review.md` vertically by discussion thread, or by review round
-  when revisiting a PR after author updates or pulling forward deferred notes from earlier PRs in
-  the stack.
-- Treat the initial threads as working hypotheses rather than a fixed outline. Preserve distinct
-  observations so the reviewer can traverse them independently, then consolidate their shared
-  framing and merge or narrow threads when the dialogue reveals that they are symptoms of the same
-  architectural force.
-- Include the GitHub PR link near the top of the file and anchor each thread with a `**Target:**`
-  listing the repo-root file path and diff line or line range, such as
-  `` `mach9-cloud/path/to/file.ts:23` `` or `` `mach9-cloud/path/to/file.ts:15-24` ``.
-- On the first turn, write the per-thread explanations into `~/pr-reviews/pr-<number>-review.md`
-  and briefly list the threads in chat so the reviewer can choose where to start.
-- Use chat to work through open questions and tradeoffs. Once a thread's direction is clear, update
-  that thread's section in `~/pr-reviews/pr-<number>-review.md` in place and briefly confirm the
-  update in chat so the reviewer can read the draft in the workbench:
+Follow [Thread anatomy and prose](../workbench/SKILL.md#thread-anatomy-and-prose) and
+[Workbench and chat flow](../workbench/SKILL.md#workbench-and-chat-flow):
+
+- Create and update `~/pr-reviews/pr-<number>-review.md` in place from the first turn by running
+  `python3 ~/.cursor/skills/review-dialogue/publish-review.py init <pr>` to scaffold the frontmatter
+  and header with `status: active`, or re-open the existing file and append a new round when
+  revisiting a PR after author updates or pulling forward deferred stack notes.
+- Anchor each thread with `**Target:**` using repo-root paths and diff lines such as
+  `` `mach9-cloud/path/to/file.ts:15-24` ``, write the first-turn explanations into the workbench in
+  natural prose, and briefly list the threads in chat.
+- Once a thread's direction settles in chat, record its outcome in place in
+  `~/pr-reviews/pr-<number>-review.md` and confirm briefly in chat without repeating drafts:
   - `**Draft comment:**` or ``**Draft comment (`mach9-cloud/path/to/file.ts:23`):**`` when a thread
     lists multiple target files and the comment anchors to a specific one.
   - `**Draft summary:**` in an overview section when the reviewer wants a top-level review body.
@@ -109,14 +73,13 @@ durable place while chat stays focused on working through open questions and tra
     `**Draft comment:**` blocks to GitHub, convert them in place to `**Posted comment ([link](...)):**`,
     and update frontmatter (`status: done`, `posted_comments`, `chat_id`, `skill_version`).
   - `done ~/pr-reviews/pr-<number>-review.md` (or `archive`): stamp `status: done`, the active
-    Cursor transcript `chat_id`, and `skill_version` in place (moving the file into `~/pr-reviews/`
-    if it was started elsewhere), for reviews that finish without posting comments.
+    Cursor transcript `chat_id`, and `skill_version` in place for reviews that finish without
+    posting comments.
   - `publish ~/pr-reviews/pr-<number>-review.md`: run `check`, `post`, and `done` in sequence.
 
 ## Alignment determines the disposition of each thread
 
-Each thread can serve a different purpose once its underlying model is clear. Alignment resolves a
-thread to the outcome that matches its scope:
+Each thread resolves to the outcome that matches its scope once its underlying model is clear:
 
 - **Actionable suggestion on the PR:** A self-contained boundary, type, invariant, or cleanup
   improvement that belongs in this change.
@@ -152,6 +115,7 @@ than narrating how the current code works:
 
 ## Agent posture
 
-- Read and follow [Design Dialogue](../design-dialogue/SKILL.md) as the conversational foundation.
-- Let the reviewer pace the traversal through the threads.
-- Keep settled material compressed in chat while recording the durable state in the workbench.
+- Read and follow [Design Dialogue](../design-dialogue/SKILL.md) and the shared invariants in
+  [Workbench](../workbench/SKILL.md) as the foundation of the review.
+- Let the reviewer pace the traversal through the threads, keeping settled material compressed in
+  chat while recording the durable state in `~/pr-reviews/pr-<number>-review.md`.
