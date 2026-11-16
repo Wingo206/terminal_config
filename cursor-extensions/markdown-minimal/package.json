@@ -1,0 +1,65 @@
+{
+  "name": "markdown-minimal",
+  "displayName": "Markdown Minimal",
+  "description": "Minimal inline Markdown styling, Vim Normal-mode stability, dimmed link URLs, and workspace-relative code links.",
+  "version": "0.1.0",
+  "publisher": "local",
+  "license": "MIT",
+  "private": true,
+  "engines": {
+    "vscode": "^1.93.0"
+  },
+  "activationEvents": [
+    "onLanguage:markdown",
+    "onLanguage:mdx"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "markdownMinimal.toggle",
+        "title": "Markdown Minimal: Toggle Inline Styling",
+        "icon": "$(eye)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "markdownMinimal.toggle",
+          "when": "editorLangId == markdown || editorLangId == mdx",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Markdown Minimal",
+      "properties": {
+        "markdownMinimal.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable minimal inline Markdown decorations."
+        },
+        "markdownMinimal.linkSyntaxOpacity": {
+          "type": "number",
+          "default": 0.22,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Opacity for dimmed Markdown link brackets and URL destinations (0-1)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "install-ext": "npm run build && node scripts/install.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test src/scanner.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@types/vscode": "^1.93.0",
+    "@vscode/vsce": "^3.3.2",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.8.0"
+  }
+}

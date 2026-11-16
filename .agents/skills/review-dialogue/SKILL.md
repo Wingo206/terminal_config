@@ -48,13 +48,14 @@ Follow [Thread anatomy and prose](../workbench/SKILL.md#thread-anatomy-and-prose
   `python3 ~/.cursor/skills/review-dialogue/publish-review.py init <pr>` to scaffold the frontmatter
   and header with `status: active`, or re-open the existing file and append a new round when
   revisiting a PR after author updates or pulling forward deferred stack notes.
-- Anchor each thread with `**Target:**` using repo-root paths and diff lines such as
-  `` `mach9-cloud/path/to/file.ts:15-24` ``, write the first-turn explanations into the workbench in
-  natural prose, and keep the first chat reply to a short index of the threads rather than repeating
-  the full explanations in chat.
+- Anchor each thread with `**Target:**` using short `filename:start-end` links pointing to
+  leading-slash workspace-relative `#Lstart-Lend` diff lines, keeping one target inline on the
+  `**Target:**` line and formatting multiple targets as a tight bullet list beneath `**Target:**`.
+  Write the first-turn explanations into the workbench in natural prose, and keep the first chat
+  reply to a short index of the threads rather than repeating the full explanations in chat.
 - Once a thread's direction settles in chat, record its outcome in place in
   `~/pr-reviews/pr-<number>-review.md` and confirm briefly in chat without repeating drafts:
-  - `**Draft comment:**` or ``**Draft comment (`mach9-cloud/path/to/file.ts:23`):**`` when a thread
+  - `**Draft comment:**` or `**Draft comment ([file.ts:23](/path/to/file.ts#L23)):**` when a thread
     lists multiple target files and the comment anchors to a specific one.
   - `**Draft summary:**` in an overview section when the reviewer wants a top-level review body.
   - `**Resolution:**` when the thread is deferred, tracked only in Linear, or resolved without a PR

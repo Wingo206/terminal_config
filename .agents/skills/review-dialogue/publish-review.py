@@ -30,6 +30,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from datetime import date
+from urllib.parse import unquote
 
 REVIEWS_DIR = Path.home() / "pr-reviews"
 DEFAULT_OWNER, DEFAULT_REPO = "mach9robotics", "bagel"
@@ -57,11 +58,11 @@ GITHUB_LINK_RE = re.compile(r"https://github\.com/[^\s)\]>]+")
 HEADING_RE = re.compile(r"^(#{2,3})\s+(.+?)\s*$")
 TARGET_HEADER_RE = re.compile(r"^(?:-\s*)?\*\*Targets?:?\*\*\s*(.*)$", re.IGNORECASE)
 DRAFT_COMMENT_RE = re.compile(
-    r"^(?:-\s*)?\*\*Draft\s+(?:inline\s+)?comment(?:\s*\(([^)]*)\))?\s*:?\*\*\s*(.*)$",
+    r"^(?:-\s*)?\*\*Draft\s+(?:inline\s+)?comment(?:\s*\(((?:[^()]|\([^()]*\))*)\))?\s*:?\*\*\s*(.*)$",
     re.IGNORECASE,
 )
 DRAFT_SUMMARY_RE = re.compile(
-    r"^(?:-\s*)?\*\*Draft\s+(?:overall\s+)?(?:review\s+)?summary(?:\s*\(([^)]*)\))?\s*:?\*\*\s*(.*)$",
+    r"^(?:-\s*)?\*\*Draft\s+(?:overall\s+)?(?:review\s+)?summary(?:\s*\(((?:[^()]|\([^()]*\))*)\))?\s*:?\*\*\s*(.*)$",
     re.IGNORECASE,
 )
 STOP_MARKER_RE = re.compile(
@@ -72,6 +73,15 @@ STOP_MARKER_RE = re.compile(
     re.IGNORECASE,
 )
 
+MD_LINK_TARGET_RE = re.compile(
+    r"(?<!!)\[([^\[\]]+)\]\(\s*<?([^)>\s]+)>?(?:\s+[\"'][^\"']*[\"'])?\s*\)"
+)
+FRAGMENT_LINES_RE = re.compile(
+    r"^L?(\d+)(?:,\d+)?(?:[-–]L?(\d+)(?:,\d+)?)?$",
+    re.IGNORECASE,
+)
+PATH_SUFFIX_LINES_RE = re.compile(r"^(.*\.[a-zA-Z0-9_]+):(\d+)(?:[-–](\d+))?$")
+LABEL_LINES_RE = re.compile(r"(?:^|:)(\d+)(?:[-–](\d+))?\s*`?$")
 BACKTICK_TARGET_RE = re.compile(
     r"`([^`\s:]+\.[a-zA-Z0-9_]+)(?::(\d+)(?:[-–](\d+))?)?`"
     r"(?:\s*\(lines?\s*(\d+)(?:[-–](\d+))?[^)]*\))?"
@@ -154,8 +164,52 @@ def run_gh_json(args: list[str], input_data: dict | None = None) -> dict | list:
 
 
 def extract_targets_from_text(text: str) -> list[TargetSpec]:
-    targets: list[TargetSpec] = []
+    collected: list[tuple[int, TargetSpec]] = []
+    link_spans: list[tuple[int, int]] = []
+
+    for match in MD_LINK_TARGET_RE.finditer(text):
+        link_spans.append((match.start(), match.end()))
+        label = match.group(1).strip()
+        raw_dest = match.group(2).strip()
+        if not raw_dest or raw_dest.startswith("#") or re.match(r"^(?:https?:|mailto:)", raw_dest, re.IGNORECASE):
+            continue
+
+        path_part, _, fragment = raw_dest.partition("#")
+        decoded_path = unquote(path_part).strip()
+        suffix_match = PATH_SUFFIX_LINES_RE.match(decoded_path)
+        path_start: int | None = None
+        path_end: int | None = None
+        if suffix_match:
+            decoded_path = suffix_match.group(1)
+            path_start = int(suffix_match.group(2))
+            path_end = int(suffix_match.group(3)) if suffix_match.group(3) else path_start
+
+        base_name = os.path.basename(decoded_path)
+        if "." not in base_name or (
+            "/" not in decoded_path
+            and not decoded_path.endswith((".ts", ".tsx", ".py", ".md", ".js", ".json"))
+        ):
+            continue
+
+        start: int | None = None
+        end: int | None = None
+        frag_match = FRAGMENT_LINES_RE.match(fragment.strip()) if fragment else None
+        if frag_match:
+            start = int(frag_match.group(1))
+            end = int(frag_match.group(2)) if frag_match.group(2) else start
+        elif path_start is not None:
+            start, end = path_start, path_end
+        else:
+            label_match = LABEL_LINES_RE.search(label)
+            if label_match:
+                start = int(label_match.group(1))
+                end = int(label_match.group(2)) if label_match.group(2) else start
+
+        collected.append((match.start(), TargetSpec(raw_path=decoded_path, start_line=start, end_line=end)))
+
     for match in BACKTICK_TARGET_RE.finditer(text):
+        if any(s <= match.start() and match.end() <= e for s, e in link_spans):
+            continue
         raw_path = match.group(1).strip()
         if "/" not in raw_path and not raw_path.endswith(
             (".ts", ".tsx", ".py", ".md", ".js", ".json")
@@ -176,8 +230,10 @@ def extract_targets_from_text(text: str) -> list[TargetSpec]:
             start = None
             end = None
 
-        targets.append(TargetSpec(raw_path=raw_path, start_line=start, end_line=end))
-    return targets
+        collected.append((match.start(), TargetSpec(raw_path=raw_path, start_line=start, end_line=end)))
+
+    collected.sort(key=lambda item: item[0])
+    return [spec for _, spec in collected]
 
 
 def clean_draft_body(raw_lines: list[str]) -> str:
@@ -384,7 +440,7 @@ def parse_workbench(path: Path) -> ParsedWorkbench:
                     in_target_block = False
                 index += 1
                 continue
-            if line.lstrip().startswith(("-", "*")) or line.lstrip().startswith("`"):
+            if line.lstrip().startswith(("-", "*", "`", "[")):
                 extracted = extract_targets_from_text(line)
                 if extracted:
                     current_targets.extend(extracted)
@@ -572,7 +628,7 @@ def fetch_pr_context(owner: str, repo: str, pr_number: int) -> PrContext:
 
 
 def resolve_file_path(raw_path: str, pr_files: dict[str, PrFileDiff]) -> str | None:
-    cleaned = raw_path.strip().lstrip("./")
+    cleaned = re.sub(r"^(?:\./|/+|\.\./)+", "", raw_path.strip())
     if cleaned in pr_files:
         return cleaned
     prefixed = f"mach9-cloud/{cleaned}"
@@ -644,7 +700,7 @@ def resolve_all_comments(
         if not comment.targets:
             raise ValueError(
                 f"Draft comment in section '{comment.section_title}' (line {comment.marker_line_index + 1}) "
-                "has no `**Target:**` or inline `**Draft comment (`path:line`):**` anchor."
+                "has no `**Target:**` or inline `**Draft comment ([file:line](/path#Lline)):**` anchor."
             )
 
         chosen_target: TargetSpec | None = None

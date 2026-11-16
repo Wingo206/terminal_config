@@ -157,3 +157,39 @@ State is machine-local:
 - Logs: `~/.local/state/git-branch-updater/logs`
 
 Updates are conservative: checked-out branches must be clean, branch updates are fast-forward only, and divergent or locked branches are skipped instead of merged, rebased, stashed, or force-updated.
+
+# Cursor Markdown Minimal
+
+`cursor-extensions/markdown-minimal` (`local.markdown-minimal`) is a zero-dependency WSL Cursor extension for reading and editing Markdown notes and review workbenches in the native Vim-enabled editor (scaled headings, monospace code spans/fences, dimmed link URLs without layout shifts, Normal-mode marker stability, and workspace-relative `/path#Lstart-Lend` code links).
+
+Install / update in WSL Cursor:
+
+```bash
+cd ~/terminal_config/cursor-extensions/markdown-minimal
+npm install
+npm run install-ext
+```
+
+Recommended `[markdown]` block in Windows Cursor user settings (`%APPDATA%\Cursor\User\settings.json`):
+
+```json
+"[markdown]": {
+    "editor.wordWrap": "on",
+    "editor.fontFamily": "'Segoe UI', system-ui, -apple-system, sans-serif",
+    "editor.fontSize": 15,
+    "editor.lineHeight": 1.65,
+    "editor.smoothScrolling": true,
+    "editor.mouseWheelScrollSensitivity": 1.8,
+    "editor.fastScrollSensitivity": 7,
+    "editor.renderWhitespace": "none",
+    "editor.guides.indentation": false,
+    "editor.padding.top": 16,
+    "editor.padding.bottom": 24,
+    "editor.quickSuggestions": {
+        "other": "off",
+        "comments": "off",
+        "strings": "off"
+    }
+}
+```
+

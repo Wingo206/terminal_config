@@ -3,3 +3,6 @@
 .agents/skills/**/evidence.md
 __pycache__/
 *.py[cod]
+cursor-extensions/*/node_modules/
+cursor-extensions/*/out/
+cursor-extensions/*/*.vsix

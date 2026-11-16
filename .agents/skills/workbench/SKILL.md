@@ -28,9 +28,13 @@ cause.
 Organize the workbench vertically with a short top header for sources and system overview when
 helpful, followed by one section per thread:
 
-- **Target anchor:** Start each thread with `**Target:**` listing the exact repo-root file paths and
-  line ranges, such as `` `mach9-cloud/path/to/file.ts:15-24` ``, or commit and PR references when a
-  thread spans a broader change.
+- **Target anchor:** Start each thread with `**Target:**` linking each code range with a short
+  `filename:start-end` label and a leading-slash workspace-relative `#Lstart-Lend` destination, such
+  as `[HomeSettingsWorkspaces.tsx:80-89](/components/home-page/HomeSettingsWorkspaces.tsx#L80-L89)`
+  or `[tap-tracker.ts:1-62](/../mach9-keymap/src/tap-tracker.ts#L1-L62)`, adding a parent folder to
+  the label only when needed to disambiguate matching filenames. Keep a single target inline on the
+  `**Target:**` line, format multiple targets as a tight bullet list beneath `**Target:**` so each
+  link sits on its own line, and use commit or PR links when a thread spans a broader change.
 - **Natural prose:** Follow
   [Explanations stay at the level of roles and invariants](../design-dialogue/SKILL.md#explanations-stay-at-the-level-of-roles-and-invariants)
   across thread explanations, chat replies, and drafted outputs. Because `**Target:**` already
