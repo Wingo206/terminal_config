@@ -139,6 +139,16 @@ Usage:
 - `git-branch-updater update`: pick saved targets and update them
 - `git-branch-updater update --all`: update all saved targets
 - `git-branch-updater refresh-cache`: rescan `~/` for git repos
+- `git-branch-updater view-log`: page through the latest run's output and per-repo git logs
+
+On tmux 3.7+, "Update saved targets" in the menu closes the popup and runs the update in an unfocused floating pane in the top-right corner. The pane shows a summary when the run finishes and closes itself after a cooldown. On older tmux, or outside tmux, the update runs in the foreground as before.
+
+Settings:
+
+- `GIT_BRANCH_UPDATER_JOBS`: parallel repo updates (default 4)
+- `GIT_BRANCH_UPDATER_NOTIFY_SECONDS`: cooldown after a clean run (default 5)
+- `GIT_BRANCH_UPDATER_NOTIFY_FAIL_SECONDS`: cooldown when anything is skipped or fails (default 15)
+- `GIT_BRANCH_UPDATER_FLOAT_WIDTH`: floating pane width in columns (default 80)
 
 State is machine-local:
 

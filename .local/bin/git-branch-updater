@@ -10,6 +10,9 @@ STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/$APP_NAME"
 TARGETS_FILE="$DATA_DIR/targets.tsv"
 REPO_CACHE="$CACHE_DIR/repos.txt"
 MAX_JOBS="${GIT_BRANCH_UPDATER_JOBS:-4}"
+NOTIFY_SECONDS="${GIT_BRANCH_UPDATER_NOTIFY_SECONDS:-5}"
+NOTIFY_FAIL_SECONDS="${GIT_BRANCH_UPDATER_NOTIFY_FAIL_SECONDS:-15}"
+FLOAT_WIDTH="${GIT_BRANCH_UPDATER_FLOAT_WIDTH:-80}"
 
 EXCLUDES=(
   ".cache"
@@ -44,8 +47,10 @@ Commands:
   list           List saved targets
   update         Pick saved targets and update them
   update --all   Update all saved targets
+  run-bg <dir>   Run a prepared update (used by the floating tmux pane)
   refresh-cache  Refresh the cached repo list
   latest-log     Print the latest run log path
+  view-log       Page through the latest run log
 EOF
 }
 
@@ -684,31 +689,15 @@ cleanup_old_logs() {
   done
 }
 
-update_targets() {
-  ensure_dirs
-  require_cmd git
-
-  local targets=()
+gather_update_targets() {
   if [[ "${1:-}" == "--all" ]]; then
-    if [[ ! -s "$TARGETS_FILE" ]]; then
-      info "no saved targets"
-      return 0
-    fi
-    mapfile -t targets <"$TARGETS_FILE"
+    [[ -s "$TARGETS_FILE" ]] && cat "$TARGETS_FILE"
   else
-    mapfile -t targets < <(select_targets_for_update)
+    select_targets_for_update
   fi
+}
 
-  local total="${#targets[@]}"
-  if (( total == 0 )); then
-    info "no targets selected"
-    return 0
-  fi
-
-  if [[ ! "$MAX_JOBS" =~ ^[1-9][0-9]*$ ]]; then
-    die "GIT_BRANCH_UPDATER_JOBS must be a positive integer"
-  fi
-
+create_run_dir() {
   local timestamp run_dir
   timestamp="$(date +%Y%m%d-%H%M%S)"
   run_dir="$STATE_DIR/logs/run-$timestamp"
@@ -719,7 +708,124 @@ update_targets() {
   done
   mkdir -p "$run_dir"
   ln -sfn "$run_dir" "$STATE_DIR/logs/latest"
-  printf '%s\n' "${targets[@]}" >"$run_dir/targets.tsv"
+  printf '%s\n' "$@" >"$run_dir/targets.tsv"
+  printf '%s\n' "$run_dir"
+}
+
+repo_count() {
+  cut -f1 "$1/targets.tsv" | sort -u | wc -l
+}
+
+run_summary() {
+  local run_dir="$1"
+  cat "$run_dir"/repo-*/status-*.tsv 2>/dev/null \
+    | awk -F '\t' '
+        { count[$1]++ }
+        END { printf "%d OK, %d SKIP, %d FAIL", count["OK"], count["SKIP"], count["FAIL"] }
+      '
+}
+
+update_targets() {
+  ensure_dirs
+  require_cmd git
+
+  local targets=()
+  mapfile -t targets < <(gather_update_targets "$@")
+
+  if (( ${#targets[@]} == 0 )); then
+    info "no targets selected"
+    return 0
+  fi
+
+  local run_dir
+  run_dir="$(create_run_dir "${targets[@]}")"
+  run_update "$run_dir" 2>&1 | tee -i "$run_dir/output.log"
+}
+
+floating_panes_available() {
+  [[ -n "${TMUX:-}" && -n "$(tmux list-commands new-pane 2>/dev/null)" ]]
+}
+
+update_in_floating_pane() {
+  ensure_dirs
+  require_cmd git
+
+  local targets=()
+  mapfile -t targets < <(gather_update_targets "$@")
+
+  if (( ${#targets[@]} == 0 )); then
+    return 0
+  fi
+
+  local run_dir
+  run_dir="$(create_run_dir "${targets[@]}")"
+
+  local window_width window_height
+  IFS=$'\t' read -r window_width window_height \
+    < <(tmux display-message -p '#{window_width}	#{window_height}')
+
+  # Sizes include the border; the pane shows a 3-line header, one line per
+  # repo and per target, then a 3-line footer.
+  local width="$FLOAT_WIDTH"
+  if (( width > window_width - 2 )); then
+    width=$(( window_width - 2 ))
+  fi
+  local height=$(( 2 + 3 + $(repo_count "$run_dir") + ${#targets[@]} + 3 ))
+  if (( height > window_height / 2 )); then
+    height=$(( window_height / 2 ))
+  fi
+  if (( height < 8 )); then
+    height=8
+  fi
+
+  if ! tmux new-pane -d -A \
+    -T " $APP_NAME " \
+    -x "$width" -y "$height" \
+    -X "$(( window_width - width ))" -Y 0 \
+    "$0" run-bg "$run_dir"; then
+    printf 'error: could not open floating pane; run is prepared in %s\n' "$run_dir" >&2
+    return 1
+  fi
+}
+
+run_background_update() {
+  local run_dir="$1"
+  require_cmd git
+  [[ -n "$run_dir" && -s "$run_dir/targets.tsv" ]] || die "not a prepared run directory: $run_dir"
+
+  local seconds
+  for seconds in "$NOTIFY_SECONDS" "$NOTIFY_FAIL_SECONDS"; do
+    [[ "$seconds" =~ ^[0-9]+$ ]] \
+      || die "GIT_BRANCH_UPDATER_NOTIFY_SECONDS and GIT_BRANCH_UPDATER_NOTIFY_FAIL_SECONDS must be whole numbers"
+  done
+
+  local status=0
+  run_update "$run_dir" 2>&1 | tee -i "$run_dir/output.log" || status=$?
+
+  local summary
+  summary="$APP_NAME: $(run_summary "$run_dir")"
+  if (( status == 0 )); then
+    seconds="$NOTIFY_SECONDS"
+  else
+    seconds="$NOTIFY_FAIL_SECONDS"
+  fi
+
+  info
+  info "$summary"
+  printf 'closing in %ss (any key closes now)' "$seconds"
+  IFS= read -r -s -n 1 -t "$seconds" _ || true
+}
+
+run_update() {
+  local run_dir="$1"
+
+  if [[ ! "$MAX_JOBS" =~ ^[1-9][0-9]*$ ]]; then
+    die "GIT_BRANCH_UPDATER_JOBS must be a positive integer"
+  fi
+
+  local targets=()
+  mapfile -t targets <"$run_dir/targets.tsv"
+  local total="${#targets[@]}"
 
   local -A repo_ids=()
   local repos=()
@@ -786,20 +892,47 @@ latest_log() {
   fi
 }
 
+view_log() {
+  local latest="$STATE_DIR/logs/latest"
+  if [[ ! -e "$latest" ]]; then
+    info "no update logs yet"
+    return 0
+  fi
+
+  local run_dir repo_log
+  run_dir="$(readlink -f "$latest")"
+  {
+    printf 'logs: %s\n\n' "$run_dir"
+    cat "$run_dir/output.log" 2>/dev/null
+    for repo_log in "$run_dir"/repo-*.log; do
+      [[ -e "$repo_log" ]] || continue
+      printf '\n===== %s =====\n' "$(<"${repo_log%.log}/name")"
+      cat "$repo_log"
+    done
+  } | "${PAGER:-less}"
+}
+
 menu() {
   ensure_dirs
   require_fzf
 
   local choice
   choice="$(
-    printf 'Update saved targets\nAdd target\nRemove targets\nList targets\nRefresh repo cache\nLatest log path\n' \
+    printf 'Update saved targets\nAdd target\nRemove targets\nList targets\nRefresh repo cache\nView latest log\nLatest log path\n' \
       | fzf --prompt='git branches> ' --height=60%
   )" || return 1
 
   case "$choice" in
     "Update saved targets")
-      update_targets || true
-      pause_to_close
+      if floating_panes_available; then
+        update_in_floating_pane || pause_to_close
+      else
+        update_targets || true
+        pause_to_close
+      fi
+      ;;
+    "View latest log")
+      view_log
       ;;
     "Add target")
       add_target || true
@@ -855,6 +988,12 @@ main() {
     update)
       shift
       update_targets "$@"
+      ;;
+    run-bg)
+      run_background_update "${2:-}"
+      ;;
+    view-log)
+      view_log
       ;;
     refresh-cache)
       refresh_cache
